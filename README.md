@@ -17,14 +17,17 @@ Beyou-e2e-tests/
 └── support/               # helpers: testData factories, API client (later)
 ```
 
-## Phase 1 status
+## What's covered
 
-This is the foundation. Phase 1 ships ONE smoke test (`tests/auth.spec.ts`):
+| Spec | What it proves |
+|------|----------------|
+| `tests/auth.spec.ts` | User can register, log in, reach the dashboard (full UI) |
+| `tests/tutorial.spec.ts` | New user can skip the tutorial, walk the 5-step intro, **and** walk the whole onboarding journey end to end (intro → dashboard → categories → habits → routines → config) |
+| `tests/habits.spec.ts` | User can create → edit → delete a habit |
 
-> a user can register, log in, and reach the dashboard.
-
-If this passes, the auth + routing + persistence stack is alive end to end.
-Future phases add habit/routine/check-in flows.
+Both the tutorial and habit specs use `fixtures/auth.ts` to set up an
+authenticated browser context without driving the auth UI for every test —
+fast, hermetic, and lets each spec focus on the flow under test.
 
 ## Prerequisites
 
@@ -99,10 +102,18 @@ VITE_API_URL=http://localhost:8099/api/v1 npm run dev
 
 ```bash
 cd ../Beyou-e2e-tests
-npm test                    # headless run
+npm test                    # headless run, all specs
 npm run test:headed         # see the browser
 npm run test:ui             # interactive Playwright UI mode
 npm run test:debug          # step through with the Playwright inspector
+
+# Run a single spec
+npx playwright test tests/habits.spec.ts
+npx playwright test tests/tutorial.spec.ts
+npx playwright test tests/auth.spec.ts
+
+# Run a single test by name
+npx playwright test -g "can create, edit, and delete"
 ```
 
 After a run, open the HTML report:
@@ -159,9 +170,9 @@ await page.fill('input[name="email"]', user.email);  // bad — too low-level fo
 
 ## Roadmap
 
-- **Phase 1 (this):** Foundation + auth smoke test
-- **Phase 2:** Auth fixture with storage state caching, habit/task POMs
-- **Phase 3:** Three critical flows (auth, habit CRUD, routine check-in with XP)
+- **Phase 1:** Foundation + auth smoke test ✅
+- **Phase 2:** Auth fixture + habit CRUD + tutorial coverage ✅
+- **Phase 3:** Routine check-in with XP gain, multi-day streaks, schedule edits
 - **Phase 4:** GitHub Actions CI workflow with docker-compose orchestration
 
 ## License
