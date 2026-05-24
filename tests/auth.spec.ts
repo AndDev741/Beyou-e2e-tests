@@ -28,7 +28,7 @@ test.describe("Auth flow", () => {
 
     await test.step("register a new user", async () => {
       await registerPage.goto();
-      await registerPage.register(user);
+      await registerPage.registerAndWaitForSuccess(user);
     });
 
     await test.step("log in with the new credentials", async () => {

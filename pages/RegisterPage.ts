@@ -43,4 +43,20 @@ export class RegisterPage {
     await this.fill(user);
     await this.submit();
   }
+
+  /**
+   * Fill, submit, and wait for the SPA's natural redirect to `/?verify=true`.
+   * Prevents a race where the next test step (e.g. `loginPage.goto("/")`)
+   * cancels the in-flight register POST before the user lands in the DB.
+   */
+  async registerAndWaitForSuccess(user: TestUser) {
+    await Promise.all([
+      this.page.waitForResponse(
+        (response) =>
+          response.url().endsWith("/auth/register") && response.ok(),
+      ),
+      this.register(user),
+    ]);
+    await this.page.waitForURL(/\?verify=true/);
+  }
 }

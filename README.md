@@ -21,13 +21,19 @@ Beyou-e2e-tests/
 
 | Spec | What it proves |
 |------|----------------|
-| `tests/auth.spec.ts` | User can register, log in, reach the dashboard (full UI) |
-| `tests/tutorial.spec.ts` | New user can skip the tutorial, walk the 5-step intro, **and** walk the whole onboarding journey end to end (intro → dashboard → categories → habits → routines → config) |
-| `tests/habits.spec.ts` | User can create → edit → delete a habit |
+| `tests/auth.spec.ts` | Register → log in → reach the dashboard (full UI) |
+| `tests/auth-persistence.spec.ts` | Logged-in user survives a hard reload; silent refresh works on first paint |
+| `tests/auth-failures.spec.ts` | Wrong password, unknown email (no enumeration), weak password, invalid email — locked-in error UX |
+| `tests/logout.spec.ts` | Logout invalidates the session, purges PII from redux-persist, blocks `/dashboard` for unauthed users, lets the same creds log back in |
+| `tests/habits.spec.ts` | Create → edit → delete a habit through the UI |
+| `tests/goals.spec.ts` | API-only: `/goal/increase` awards no XP, `/goal/complete` does — locks in the asymmetry |
+| `tests/routine-checkin.spec.ts` | Check a habit on today's routine → XP and constance go up; checkbox state survives a reload |
+| `tests/tutorial.spec.ts` | Skip, walk the 5-step intro, **and** walk the whole onboarding journey end to end (intro → dashboard → categories → habits → routines → config) |
 
-Both the tutorial and habit specs use `fixtures/auth.ts` to set up an
-authenticated browser context without driving the auth UI for every test —
-fast, hermetic, and lets each spec focus on the flow under test.
+Everything except `auth.spec.ts`, `auth-persistence.spec.ts`, and
+`auth-failures.spec.ts` uses `fixtures/auth.ts` to set up an authenticated
+browser context without driving the auth UI for every test — fast, hermetic,
+and lets each spec focus on the flow under test.
 
 ## Prerequisites
 

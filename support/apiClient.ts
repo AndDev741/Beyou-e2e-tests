@@ -97,6 +97,42 @@ export async function loginUser(
   return { accessToken };
 }
 
+export interface UserSnapshot {
+  xp: number;
+  level: number;
+  constance: number;
+  maxConstance: number;
+}
+
+/**
+ * Re-login the user and return a snapshot of their gamification state. Useful
+ * for asserting XP / constance changes after an action driven through the UI,
+ * since there is no dedicated `GET /user/me` endpoint.
+ */
+export async function fetchUserSnapshot(
+  ctx: APIRequestContext,
+  credentials: LoginPayload,
+): Promise<UserSnapshot> {
+  const response = await ctx.post(joinUrl("auth/login"), { data: credentials });
+  if (!response.ok()) {
+    throw new Error(`fetchUserSnapshot login failed: ${response.status()}`);
+  }
+  const body = (await response.json()) as {
+    success: {
+      xp: number;
+      level: number;
+      constance: number;
+      maxConstance: number;
+    };
+  };
+  return {
+    xp: body.success.xp,
+    level: body.success.level,
+    constance: body.success.constance,
+    maxConstance: body.success.maxConstance,
+  };
+}
+
 /**
  * Create a category for the authenticated user. Habits require at least one
  * category, so tests that exercise habit flows usually seed a category first.
@@ -279,6 +315,108 @@ export async function createSchedule(
       `createSchedule failed: ${response.status()} ${response.statusText()} — ${body}`,
     );
   }
+}
+
+export interface GoalPayload {
+  name: string;
+  description?: string;
+  iconId?: string;
+  targetValue: number;
+  unit: string;
+  currentValue: number;
+  categoriesId: string[];
+  motivation?: string;
+  /** ISO date string YYYY-MM-DD. */
+  startDate: string;
+  /** ISO date string YYYY-MM-DD. */
+  endDate: string;
+  status: "NOT_STARTED" | "IN_PROGRESS" | "COMPLETED";
+  term: "SHORT_TERM" | "MEDIUM_TERM" | "LONG_TERM";
+}
+
+interface GoalRow {
+  id: string;
+  name: string;
+  currentValue: number;
+  complete: boolean;
+}
+
+export async function createGoal(
+  ctx: APIRequestContext,
+  accessToken: string,
+  payload: GoalPayload,
+): Promise<{ id: string }> {
+  const response = await ctx.post(joinUrl("goal"), {
+    headers: { Authorization: `Bearer ${accessToken}` },
+    data: payload,
+  });
+  if (!response.ok()) {
+    const body = await response.text();
+    throw new Error(
+      `createGoal failed: ${response.status()} ${response.statusText()} — ${body}`,
+    );
+  }
+  const list = await ctx.get(joinUrl("goal"), {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!list.ok()) {
+    throw new Error(`listGoals failed: ${list.status()}`);
+  }
+  const rows = (await list.json()) as GoalRow[];
+  const match = rows.find((g) => g.name === payload.name);
+  if (!match) {
+    throw new Error(
+      `createGoal: goal named "${payload.name}" not found after create`,
+    );
+  }
+  return { id: match.id };
+}
+
+export async function increaseGoal(
+  ctx: APIRequestContext,
+  accessToken: string,
+  goalId: string,
+): Promise<GoalRow> {
+  const response = await ctx.put(joinUrl("goal/increase"), {
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+    },
+    // Backend takes a raw `@RequestBody UUID goalId`, which Jackson expects as
+    // a JSON-encoded string ("<uuid>" with quotes). Passing the bare UUID
+    // string returns 403 — Playwright sends raw bodies as-is.
+    data: JSON.stringify(goalId),
+  });
+  if (!response.ok()) {
+    throw new Error(
+      `increaseGoal failed: ${response.status()} ${response.statusText()}`,
+    );
+  }
+  return (await response.json()) as GoalRow;
+}
+
+export async function completeGoal(
+  ctx: APIRequestContext,
+  accessToken: string,
+  goalId: string,
+): Promise<{
+  refreshUser: { xp: number; level: number; constance: number };
+}> {
+  const response = await ctx.put(joinUrl("goal/complete"), {
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+    },
+    data: JSON.stringify(goalId),
+  });
+  if (!response.ok()) {
+    throw new Error(
+      `completeGoal failed: ${response.status()} ${response.statusText()}`,
+    );
+  }
+  return (await response.json()) as {
+    refreshUser: { xp: number; level: number; constance: number };
+  };
 }
 
 /** The current local weekday in the form the backend's WeekDay enum expects. */
