@@ -317,6 +317,31 @@ export async function createSchedule(
   }
 }
 
+/**
+ * Edit the authenticated user's profile. Mirrors the frontend's PUT /user
+ * (the `editUser` service). Used to seed server-side preferences — theme,
+ * tutorial-completed flag, language — before driving the UI, so a test can
+ * assert how those preferences survive (or fail to survive) a page reload.
+ *
+ * Payload keys match UserEditDTO: theme, isTutorialCompleted, language, etc.
+ */
+export async function editUser(
+  ctx: APIRequestContext,
+  accessToken: string,
+  payload: Record<string, unknown>,
+): Promise<void> {
+  const response = await ctx.put(joinUrl("user"), {
+    headers: { Authorization: `Bearer ${accessToken}` },
+    data: payload,
+  });
+  if (!response.ok()) {
+    const body = await response.text();
+    throw new Error(
+      `editUser failed: ${response.status()} ${response.statusText()} — ${body}`,
+    );
+  }
+}
+
 export interface GoalPayload {
   name: string;
   description?: string;
