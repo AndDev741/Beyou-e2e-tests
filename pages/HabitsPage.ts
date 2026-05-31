@@ -40,8 +40,9 @@ export class HabitsPage {
 
   /**
    * Ensure the card is expanded so its Edit / Delete buttons are visible.
-   * The toggle is bound to a single <img>, so we only click it when the
-   * action area is still hidden — otherwise we'd flip it back closed.
+   * The toggle is a <button aria-label="Expand"|"Collapse">, so we only
+   * click it when the action area is still hidden — otherwise we'd flip
+   * it back closed.
    */
   async expandHabit(name: string): Promise<void> {
     const card = this.cardOf(name);
@@ -49,9 +50,7 @@ export class HabitsPage {
     if (await deleteButton.isVisible().catch(() => false)) {
       return;
     }
-    await card
-      .getByRole("img", { name: "Increase and descrease box icon" })
-      .click();
+    await card.getByRole("button", { name: "Expand" }).click();
     await deleteButton.waitFor({ state: "visible" });
   }
 
