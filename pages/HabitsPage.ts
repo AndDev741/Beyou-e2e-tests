@@ -62,9 +62,12 @@ export class HabitsPage {
   async deleteHabit(name: string): Promise<void> {
     await this.expandHabit(name);
     const card = this.cardOf(name);
-    // First "Delete" opens the confirm modal; the modal renders its own
-    // "Delete" inside the same card, which we then click via .last().
-    await card.getByRole("button", { name: "Delete" }).first().click();
-    await card.getByRole("button", { name: "Delete" }).last().click();
+    // The card's "Delete" opens a global confirmation dialog (DeleteModal
+    // portals to document.body with role="dialog"); confirm inside it.
+    await card.getByRole("button", { name: "Delete" }).click();
+    await this.page
+      .getByRole("dialog")
+      .getByRole("button", { name: "Delete" })
+      .click();
   }
 }
