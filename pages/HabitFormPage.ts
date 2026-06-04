@@ -40,8 +40,11 @@ export class HabitFormPage {
   readonly iconSearchInput = (): Locator =>
     this.form().locator('input[name="icon"]');
 
+  // exact: true — the icon grid can sample an "Icon: Create" tile (MdCreate),
+  // and Playwright's default name match is substring. Exact keeps this locked
+  // to the submit button.
   readonly createButton = (): Locator =>
-    this.form().getByRole("button", { name: "Create" });
+    this.form().getByRole("button", { name: "Create", exact: true });
   readonly editButton = (): Locator =>
     this.form().getByRole("button", { name: "Edit", exact: true });
 
