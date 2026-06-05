@@ -19,19 +19,14 @@ test.describe("Configuration page", () => {
 
     await authedPage.goto("/configuration");
 
-    // The grouped sections from the UX polish PR.
-    await expect(
-      authedPage.getByRole("heading", { name: "Profile", exact: true }),
-    ).toBeVisible();
-    await expect(
-      authedPage.getByRole("heading", { name: "Appearance", exact: true }),
-    ).toBeVisible();
-    await expect(
-      authedPage.getByRole("heading", { name: "Preferences", exact: true }),
-    ).toBeVisible();
-    await expect(
-      authedPage.getByRole("heading", { name: "Dashboard", exact: true }),
-    ).toBeVisible();
+    // The grouped sections from the UX polish PR. ConfigSection headings are
+    // <h2>; level: 2 disambiguates from inner component headings (e.g. the
+    // ProfileConfiguration <h1> is also named "Profile").
+    for (const section of ["Profile", "Appearance", "Preferences", "Dashboard"]) {
+      await expect(
+        authedPage.getByRole("heading", { level: 2, name: section, exact: true }),
+      ).toBeVisible();
+    }
 
     // The widget drag-and-drop board mounted (it previews every widget,
     // including chart-based ones — this is where a bad chart registration
