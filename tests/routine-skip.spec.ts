@@ -12,7 +12,7 @@ import { fetchUserSnapshot } from "../support/apiClient";
  * WITHOUT any hover interaction.
  *
  * We also lock in the skip semantics: skipping must NOT award XP or constance
- * (only `POST /routine/check` does), the item shows its "Skipped" state, and
+ * (only `POST /routine/check` does), the item shows its skipped state, and
  * the action is reversible via "Undo skip".
  */
 test.describe("Routine skip (mobile)", () => {
@@ -48,7 +48,11 @@ test.describe("Routine skip (mobile)", () => {
         skipButton.click(),
       ]);
 
-      await expect(habitRow.getByText("Skipped", { exact: true })).toBeVisible();
+      // The skipped state shows as the "Undo skip" button (the redundant
+      // "Skipped" label was removed to save mobile space).
+      await expect(
+        habitRow.getByRole("button", { name: "Undo skip" }).first(),
+      ).toBeVisible();
 
       const after = await fetchUserSnapshot(api.ctx, {
         email: testUser.email,
@@ -73,7 +77,7 @@ test.describe("Routine skip (mobile)", () => {
       ]);
 
       await expect(
-        habitRow.getByText("Skipped", { exact: true }),
+        habitRow.getByRole("button", { name: "Undo skip" }),
       ).toHaveCount(0);
       await expect(
         habitRow.getByRole("button", { name: "Skip" }).first(),
