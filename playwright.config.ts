@@ -17,8 +17,14 @@ export default defineConfig({
   // Per-test timeout. Most flows finish in <5s; padding for cold starts.
   timeout: 30_000,
 
-  // assertion timeout (e.g. expect(...).toBeVisible() retries up to this)
-  expect: { timeout: 5_000 },
+  // Assertion timeout (e.g. expect(...).toBeVisible() retries up to this).
+  // The frontend ships route-level lazy loading; against the UNBUNDLED Vite
+  // dev server, a fresh browser context's first paint of a lazy page can
+  // exceed 5s when all workers hammer the server in parallel (each context
+  // re-downloads the page's module graph). Passing assertions resolve as
+  // fast as ever — this only pads the worst-case wait. Production serves
+  // pre-built chunks and does not have this latency.
+  expect: { timeout: 15_000 },
 
   // Run tests in parallel across files. Within a file they stay sequential
   // unless explicitly opted into worker-scoped parallelism — easier to reason
@@ -45,9 +51,12 @@ export default defineConfig({
     screenshot: "only-on-failure",
     video: "retain-on-failure",
 
-    // Light timeout on individual actions like clicks and fills.
-    actionTimeout: 5_000,
-    navigationTimeout: 10_000,
+    // Timeouts on individual actions (clicks, fills) and navigations. Padded
+    // for the same reason as the expect timeout above: a lazy page's first
+    // paint on the dev server can be slow under parallel load, and an action
+    // targeting that page waits for it. Fast paths are unaffected.
+    actionTimeout: 15_000,
+    navigationTimeout: 15_000,
   },
 
   projects: [
