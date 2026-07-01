@@ -6,6 +6,7 @@ import {
   createRoutine,
   createSchedule,
   currentWeekDay,
+  editUser,
   loginUser,
   newApiContext,
   registerUser,
@@ -141,13 +142,13 @@ export const test = base.extend<AuthFixtures>({
   },
 
   authedPage: async ({ browser, api }, use) => {
-    const { context, page } = await buildAuthedContext(browser, api.ctx, true);
+    const { context, page } = await buildAuthedContext(browser, api, true);
     await use(page);
     await context.close();
   },
 
   freshAuthedPage: async ({ browser, api }, use) => {
-    const { context, page } = await buildAuthedContext(browser, api.ctx, false);
+    const { context, page } = await buildAuthedContext(browser, api, false);
     await use(page);
     await context.close();
   },
@@ -164,15 +165,25 @@ export const test = base.extend<AuthFixtures>({
  * browser's POV, so SameSite=Lax cookies still get sent on the SPA's
  * cross-origin POST to /auth/refresh.
  *
- * @param bypassTutorial when true, pre-sets localStorage so the onboarding
- *   modal never appears. Pass false for tests that drive the tutorial itself.
+ * @param bypassTutorial when true, marks the tutorial completed server-side
+ *   (the real signal the SPA reads to clear the onboarding phase) AND pre-sets
+ *   the localStorage phase so nothing flashes before the profile loads. Pass
+ *   false for tests that drive the tutorial itself.
  */
 async function buildAuthedContext(
   browser: import("@playwright/test").Browser,
-  apiCtx: APIRequestContext,
+  api: { ctx: APIRequestContext; accessToken: string },
   bypassTutorial: boolean,
 ): Promise<{ context: import("@playwright/test").BrowserContext; page: Page }> {
-  const storageState = await apiCtx.storageState();
+  if (bypassTutorial) {
+    // Mark completed via the same API the app uses — this makes the SPA clear
+    // the tutorial phase on load, so no spotlight/finale mounts. (The finale
+    // now renders on the "done" phase, so the old localStorage-only bypass
+    // would leave a full-screen overlay covering the dashboard.)
+    await editUser(api.ctx, api.accessToken, { isTutorialCompleted: true });
+  }
+
+  const storageState = await api.ctx.storageState();
   const context = await browser.newContext({
     storageState,
     baseURL: process.env.BASE_URL ?? "http://localhost:3000",
