@@ -118,7 +118,7 @@ test.describe("Onboarding tutorial", () => {
     });
 
     await test.step("return to dashboard → click Habits shortcut", async () => {
-      await page.getByRole("link", { name: "Arrow pointing to back" }).click();
+      // Finishing the categories spotlight auto-navigates back to the dashboard.
       await expect(page).toHaveURL(/\/dashboard/);
       await expect(
         page.getByRole("heading", { name: "Next: Habits" }),
@@ -135,7 +135,7 @@ test.describe("Onboarding tutorial", () => {
     });
 
     await test.step("return to dashboard → click Routines shortcut", async () => {
-      await page.getByRole("link", { name: "Arrow pointing to back" }).click();
+      // Finishing the habits spotlight auto-navigates back to the dashboard.
       await expect(page).toHaveURL(/\/dashboard/);
       await expect(
         page.getByRole("heading", { name: "Next: Routines" }),
@@ -168,11 +168,21 @@ test.describe("Onboarding tutorial", () => {
       await expect(page).toHaveURL(/\/configuration/);
     });
 
-    await test.step("config page silently finishes the tutorial", async () => {
-      // useConfigTutorial fires finishTutorial() on mount when phase==="config".
-      // The backend updates `isTutorialCompleted`, then the hook clears the
-      // local phase. Both happen async after mount, so we poll the
-      // localStorage flag until it goes away.
+    await test.step("config walkthrough → dashboard finale finishes the tutorial", async () => {
+      // Config is now a per-section walkthrough: Profile → Appearance →
+      // Preferences → Dashboard (4 steps). Its spotlight reuses each section's
+      // own heading text, so we drive it by the tooltip's Next/Finish buttons
+      // rather than by heading (which would also match the section <h2>).
+      await clickNext(page); // Profile → Appearance
+      await clickNext(page); // Appearance → Preferences
+      await clickNext(page); // Preferences → Dashboard
+      await clickFinish(page); // Dashboard (last) → navigate to the dashboard finale
+
+      await expect(page).toHaveURL(/\/dashboard/);
+      await page.getByTestId("tutorial-finale-done").click();
+
+      // The finale's button completes the tutorial: backend flag flips, then the
+      // hook clears the local phase (both async after the click).
       await expect
         .poll(
           async () =>
@@ -191,7 +201,9 @@ async function clickNext(page: Page): Promise<void> {
   await page.getByRole("button", { name: "Next" }).click();
 }
 
-/** Click the spotlight tooltip's "Finish" button (shown on the last step). */
+/** Click the spotlight tooltip's "Finish" button (shown on the last step).
+ * Exact match: the config page's Constance options ("…finished…", "…finishing…")
+ * otherwise collide with a substring match on "Finish". */
 async function clickFinish(page: Page): Promise<void> {
-  await page.getByRole("button", { name: "Finish" }).click();
+  await page.getByRole("button", { name: "Finish", exact: true }).click();
 }
