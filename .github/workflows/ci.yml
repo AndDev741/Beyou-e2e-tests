@@ -1,0 +1,78 @@
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  e2e:
+    name: E2E
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout e2e tests (under test)
+        uses: actions/checkout@v6
+        with:
+          path: e2e
+
+      - name: Checkout dev-env
+        uses: actions/checkout@v6
+        with:
+          repository: AndDev741/Beyou-dev-env
+          ref: main
+          path: dev-env
+
+      - name: Checkout frontend (main)
+        uses: actions/checkout@v6
+        with:
+          repository: AndDev741/Beyou-Frontend
+          ref: main
+          path: frontend
+
+      - name: Checkout backend (main, bootstrap fallback)
+        uses: actions/checkout@v6
+        with:
+          repository: AndDev741/Beyou-backend-spring
+          ref: main
+          path: backend
+
+      - name: Build web image (from main)
+        run: |
+          docker build --target nginx \
+            --build-arg VITE_API_URL=http://localhost:8099/api/v1 \
+            -t beyou-web:e2e -f ./frontend/apps/web/Dockerfile ./frontend
+
+      - name: Get backend image (pull latest, else build from main)
+        run: |
+          if docker pull ghcr.io/anddev741/beyou-backend:latest; then
+            docker tag ghcr.io/anddev741/beyou-backend:latest beyou-backend:e2e
+          else
+            docker build --target runtime -t beyou-backend:e2e ./backend
+          fi
+
+      - name: Boot the stack
+        working-directory: dev-env
+        run: docker compose -f docker-compose.e2e.yml up -d --wait
+
+      - name: Wait for backend + web to serve
+        run: |
+          for i in $(seq 1 90); do curl -s -o /dev/null http://localhost:8099 && break; sleep 2; done
+          for i in $(seq 1 30); do curl -s -o /dev/null http://localhost:3000 && break; sleep 2; done
+
+      - name: Run Playwright
+        working-directory: e2e
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+          BASE_URL=http://localhost:3000 npm test
+
+      - name: Upload Playwright report on failure
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-report
+          path: e2e/playwright-report/
+          retention-days: 7
