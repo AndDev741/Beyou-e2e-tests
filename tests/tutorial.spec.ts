@@ -49,7 +49,13 @@ test.describe("Onboarding tutorial", () => {
     }
     await getStarted.click();
 
-    // Past the intro modal we're now in the dashboard spotlight phase, so the
+    // The fork screen offers "Personalized setup" vs "Hands-on tour".
+    // Pick the manual path to reach the dashboard spotlight.
+    await freshAuthedPage
+      .getByRole("button", { name: "Hands-on tour" })
+      .click();
+
+    // Past the fork we're now in the dashboard spotlight phase, so the
     // SpotlightTutorial tooltip should show — the modal's "Skip tutorial"
     // button is gone, but the spotlight's "Skip tutorial" link appears.
     await expect(
@@ -86,6 +92,8 @@ test.describe("Onboarding tutorial", () => {
         await nextButton.click();
       }
       await getStarted.click();
+      // Choose the manual path through the fork screen.
+      await page.getByRole("button", { name: "Hands-on tour" }).click();
     });
 
     await test.step("dashboard spotlight → click Categories shortcut", async () => {
