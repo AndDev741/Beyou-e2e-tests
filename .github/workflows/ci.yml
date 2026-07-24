@@ -18,6 +18,26 @@ jobs:
         with:
           path: e2e
 
+      # Cross-repo features: when a sibling repo has a branch with the SAME
+      # name as this branch, test against it instead of main — new specs often
+      # need unreleased frontend/backend. Falls back to main when absent.
+      - name: Resolve sibling refs
+        id: refs
+        run: |
+          BRANCH="${{ github.head_ref || github.ref_name }}"
+          resolve() {
+            if [ "$BRANCH" != "main" ] && git ls-remote --exit-code --heads "https://github.com/$1" "$BRANCH" > /dev/null 2>&1; then
+              echo "$BRANCH"
+            else
+              echo "main"
+            fi
+          }
+          FRONTEND_REF=$(resolve AndDev741/Beyou-Frontend)
+          BACKEND_REF=$(resolve AndDev741/Beyou-backend-spring)
+          echo "frontend=$FRONTEND_REF" >> "$GITHUB_OUTPUT"
+          echo "backend=$BACKEND_REF" >> "$GITHUB_OUTPUT"
+          echo "Using frontend=$FRONTEND_REF backend=$BACKEND_REF (branch: $BRANCH)"
+
       - name: Checkout dev-env
         uses: actions/checkout@v6
         with:
@@ -25,18 +45,18 @@ jobs:
           ref: main
           path: dev-env
 
-      - name: Checkout frontend (main)
+      - name: Checkout frontend (matched branch or main)
         uses: actions/checkout@v6
         with:
           repository: AndDev741/Beyou-Frontend
-          ref: main
+          ref: ${{ steps.refs.outputs.frontend }}
           path: frontend
 
-      - name: Checkout backend (main, bootstrap fallback)
+      - name: Checkout backend (matched branch or main)
         uses: actions/checkout@v6
         with:
           repository: AndDev741/Beyou-backend-spring
-          ref: main
+          ref: ${{ steps.refs.outputs.backend }}
           path: backend
 
       - name: Build web image (from main)
@@ -45,9 +65,14 @@ jobs:
             --build-arg VITE_API_URL=http://localhost:8099/api/v1 \
             -t beyou-web:e2e -f ./frontend/apps/web/Dockerfile ./frontend
 
-      - name: Get backend image (pull latest, else build from main)
+      - name: Get backend image (pull latest, else build from source)
         run: |
-          if docker pull ghcr.io/anddev741/beyou-backend:latest; then
+          # A matched backend branch means these specs need unreleased backend
+          # code — the published :latest (built from main) would fail them.
+          if [ "${{ steps.refs.outputs.backend }}" != "main" ]; then
+            echo "Building backend from matched branch ${{ steps.refs.outputs.backend }}"
+            docker build --target runtime -t beyou-backend:e2e ./backend
+          elif docker pull ghcr.io/anddev741/beyou-backend:latest; then
             docker tag ghcr.io/anddev741/beyou-backend:latest beyou-backend:e2e
           else
             docker build --target runtime -t beyou-backend:e2e ./backend
