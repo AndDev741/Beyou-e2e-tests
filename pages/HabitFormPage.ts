@@ -23,30 +23,25 @@ export class HabitFormPage {
   constructor(private readonly page: Page) {}
 
   /**
-   * Both CreateHabit and EditHabit forms are mounted simultaneously on the
-   * page (toggled with `display: hidden`). Anchoring on the visible form
-   * keeps every locator unambiguous regardless of which mode is active.
-   *
-   * `:visible` is a Playwright engine selector that filters by computed
-   * visibility — exactly the discriminator we need here.
+   * The form opens in a modal (create and edit reuse the same one), so only one
+   * `<form>` is visible at a time. `:visible` is the discriminator.
    */
   readonly form = (): Locator => this.page.locator("form:visible");
 
-  readonly nameInput = (): Locator => this.form().locator('input[name="Name"]');
+  // Ids of the redesigned form (`habit-name`, `habit-description`,
+  // `habit-motivation`); they used to be CamelCase `name` attributes.
+  readonly nameInput = (): Locator => this.form().locator("#habit-name");
   readonly descriptionInput = (): Locator =>
-    this.form().locator('textarea[id="description"]');
+    this.form().locator("#habit-description");
   readonly motivationalInput = (): Locator =>
-    this.form().locator('input[name="MotivationPhrase"]');
+    this.form().locator("#habit-motivation");
   readonly iconSearchInput = (): Locator =>
-    this.form().locator('input[name="icon"]');
+    this.form().locator('input[name="icon-small"]');
 
-  // exact: true — the icon grid can sample an "Icon: Create" tile (MdCreate),
-  // and Playwright's default name match is substring. Exact keeps this locked
-  // to the submit button.
+  // Create and edit share the same submit label in the new design.
   readonly createButton = (): Locator =>
-    this.form().getByRole("button", { name: "Create", exact: true });
-  readonly editButton = (): Locator =>
-    this.form().getByRole("button", { name: "Edit", exact: true });
+    this.form().getByRole("button", { name: "Save habit", exact: true });
+  readonly editButton = (): Locator => this.createButton();
 
   /**
    * Selects the first icon matching `query`. Relies on the icon picker
@@ -65,23 +60,23 @@ export class HabitFormPage {
     await firstIcon.click();
   }
 
+  /**
+   * Importance and difficulty became a `SegmentedControl`: a labelled
+   * `role=radiogroup` with `role=radio` inside. They used to be sibling
+   * input+label pairs.
+   */
+  private radio(group: string, level: string): Locator {
+    return this.form()
+      .getByRole("radiogroup", { name: group })
+      .getByRole("radio", { name: level, exact: true });
+  }
+
   async pickImportance(level: HabitFormInput["importance"]): Promise<void> {
-    // ChooseInput renders <input type="radio" name="importance" id={levelLabel}>
-    // with a sibling <label htmlFor={levelLabel}>; clicking the label flips
-    // the radio. Importance and difficulty share the level labels (Easy/Hard
-    // collide with nothing, but Medium/Normal are unique), so scoping to the
-    // importance radio group keeps it unambiguous.
-    await this.form()
-      .locator(`input[name="importance"][id="${level}"]`)
-      .locator("xpath=following-sibling::label")
-      .click();
+    await this.radio("Importance", level).click();
   }
 
   async pickDifficulty(level: HabitFormInput["difficulty"]): Promise<void> {
-    await this.form()
-      .locator(`input[name="difficulty"][id="${level}"]`)
-      .locator("xpath=following-sibling::label")
-      .click();
+    await this.radio("Difficulty", level).click();
   }
 
   /**
@@ -120,6 +115,12 @@ export class HabitFormPage {
     await expect(
       this.page.getByRole("heading", { name: "Create Habit" }),
     ).toBeVisible();
+  }
+
+  /** The form became a modal: it opens through the page header's button. */
+  async openCreateForm(): Promise<void> {
+    await this.page.getByTestId("create-habit").click();
+    await this.expectCreateFormVisible();
   }
 
   async expectEditFormVisible(): Promise<void> {

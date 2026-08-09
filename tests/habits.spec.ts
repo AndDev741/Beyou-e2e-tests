@@ -26,9 +26,11 @@ test.describe("Habit CRUD", () => {
     const habits = new HabitsPage(authedPage);
     const form = new HabitFormPage(authedPage);
 
-    await test.step("open the habits page", async () => {
+    await test.step("open the habits page and the create form", async () => {
       await habits.goto();
-      await form.expectCreateFormVisible();
+      // The form used to be inline on the page; it is now a modal behind the
+      // header's button.
+      await form.openCreateForm();
     });
 
     await test.step("create a new habit", async () => {

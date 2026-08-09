@@ -39,6 +39,12 @@ test.describe("Routine check-in", () => {
       .filter({ has: authedPage.locator('input[type="checkbox"]') })
       .filter({ hasText: "Drink water" });
     const checkbox = habitRow.locator('input[type="checkbox"]').first();
+    // The check's input is `sr-only` with the ring drawn on top (the new design's
+    // pattern, on the dashboard routine and on the routines page). Clicking the
+    // input fails Playwright's hit-target test — what receives the click is the
+    // ring, its sibling inside the `<label>`. So click the LABEL, which is what a
+    // person actually hits.
+    const checkToggle = habitRow.locator('label:has(input[type="checkbox"])').first();
 
     await expect(checkbox).toBeVisible();
     await expect(checkbox).not.toBeChecked();
@@ -53,7 +59,7 @@ test.describe("Routine check-in", () => {
           (response) =>
             response.url().endsWith("/routine/check") && response.ok(),
         ),
-        checkbox.click(),
+        checkToggle.click(),
       ]);
       await expect(checkbox).toBeChecked();
     });

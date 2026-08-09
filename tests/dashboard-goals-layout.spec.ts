@@ -51,21 +51,25 @@ test.describe("Dashboard goals layout (Bug 4)", () => {
     await authedPage.setViewportSize({ width: 375, height: 812 });
     await authedPage.goto("/dashboard");
 
-    // The goal renders as an <h2> inside its GoalBox card.
-    const goalHeading = authedPage.getByRole("heading", {
-      name: "Read 10 pages",
-    });
-    await expect(goalHeading).toBeVisible();
+    // The dashboard's goals block became a list: every goal is a button with a
+    // truncated name, no longer a 350px card inside a carousel. That is why the
+    // name is no longer a heading.
+    const goalRow = authedPage.getByRole("button", { name: /Read 10 pages/ });
+    await expect(goalRow).toBeVisible();
 
-    // Walk up to the nearest horizontal scroll container (the GoalsTab carousel).
-    const scroller = goalHeading.locator(
-      "xpath=ancestor::div[contains(@class,'overflow-x-auto')][1]",
+    // The regression that matters is still the same: no horizontal scroll on the
+    // page because of a goal. With no carousel to measure, measure the document —
+    // which is where the user would feel the overflow.
+    const documentOverflowPx = await authedPage.evaluate(
+      () =>
+        document.documentElement.scrollWidth -
+        document.documentElement.clientWidth,
     );
-    const overflowPx = await scroller.evaluate(
-      (el) => el.scrollWidth - el.clientWidth,
-    );
+    expect(documentOverflowPx).toBeLessThanOrEqual(1);
 
-    // BUG: the 350px non-shrinking readonly card overflows a 375px viewport.
-    expect(overflowPx).toBeLessThanOrEqual(1);
+    // And the goal's row fits the viewport (the truncate does the job).
+    const box = await goalRow.boundingBox();
+    expect(box).not.toBeNull();
+    expect(box!.x + box!.width).toBeLessThanOrEqual(375 + 1);
   });
 });

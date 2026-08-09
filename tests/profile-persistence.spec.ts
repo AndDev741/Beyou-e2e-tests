@@ -17,9 +17,12 @@ import { DashboardPage } from "../pages/DashboardPage";
  * then hard-reload and assert it survived. They FAIL on the current build and
  * should pass once the boot path restores the profile.
  *
- * Theme primaries come from Beyou-Frontend/src/components/utils/listOfThemes.tsx.
+ * Theme accents come from Beyou-Frontend/packages/theme/src/tokens.ts, mapped by
+ * listOfThemes.ts. "Sunset" is a LEGACY theme name: the redesign migrated it to
+ * the `light:sunset` pack, whose accent is #E45A0B — #FB923C is now that pack's
+ * DARK accent. `--primary` survives as an alias of `--accent`.
  */
-const SUNSET_PRIMARY = "#FB923C"; // Sunset theme primary
+const SUNSET_PRIMARY = "#E45A0B"; // light:sunset accent
 const DEFAULT_PRIMARY = "#0082e1"; // beYou / beYouDark fallback primary
 
 test.describe("Profile persistence across hard reload (Bug 1)", () => {
