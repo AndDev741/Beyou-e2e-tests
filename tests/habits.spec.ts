@@ -28,8 +28,8 @@ test.describe("Habit CRUD", () => {
 
     await test.step("open the habits page and the create form", async () => {
       await habits.goto();
-      // O formulário era inline na página; agora é um modal atrás do botão do
-      // cabeçalho.
+      // The form used to be inline on the page; it is now a modal behind the
+      // header's button.
       await form.openCreateForm();
     });
 

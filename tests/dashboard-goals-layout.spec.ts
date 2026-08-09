@@ -51,15 +51,15 @@ test.describe("Dashboard goals layout (Bug 4)", () => {
     await authedPage.setViewportSize({ width: 375, height: 812 });
     await authedPage.goto("/dashboard");
 
-    // O bloco de metas do dashboard virou lista: cada meta é um botão com o
-    // nome truncado, não mais um cartão de 350px dentro de um carrossel. O
-    // nome, por isso, não é mais heading.
+    // The dashboard's goals block became a list: every goal is a button with a
+    // truncated name, no longer a 350px card inside a carousel. That is why the
+    // name is no longer a heading.
     const goalRow = authedPage.getByRole("button", { name: /Read 10 pages/ });
     await expect(goalRow).toBeVisible();
 
-    // A regressão que importa continua a mesma: nada de rolagem horizontal na
-    // página por causa de uma meta. Sem carrossel para medir, mede-se o
-    // documento — que é onde o usuário sentiria o estouro.
+    // The regression that matters is still the same: no horizontal scroll on the
+    // page because of a goal. With no carousel to measure, measure the document —
+    // which is where the user would feel the overflow.
     const documentOverflowPx = await authedPage.evaluate(
       () =>
         document.documentElement.scrollWidth -
@@ -67,7 +67,7 @@ test.describe("Dashboard goals layout (Bug 4)", () => {
     );
     expect(documentOverflowPx).toBeLessThanOrEqual(1);
 
-    // E a linha da meta cabe na viewport (o truncate faz o serviço).
+    // And the goal's row fits the viewport (the truncate does the job).
     const box = await goalRow.boundingBox();
     expect(box).not.toBeNull();
     expect(box!.x + box!.width).toBeLessThanOrEqual(375 + 1);

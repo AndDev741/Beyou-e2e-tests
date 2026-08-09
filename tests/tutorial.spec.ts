@@ -100,7 +100,7 @@ test.describe("Onboarding tutorial", () => {
     });
 
     await test.step("dashboard spotlight → click Categories shortcut", async () => {
-      // Dois passos, não três: o do perfil saiu com o redesenho.
+      // Two steps, not three: the profile one went out with the redesign.
       await expect(
         page.getByRole("heading", { name: "Quick Shortcuts" }),
       ).toBeVisible();

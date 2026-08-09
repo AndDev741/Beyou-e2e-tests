@@ -28,11 +28,11 @@ test.describe("Gamification feedback", () => {
       .filter({ has: authedPage.locator('input[type="checkbox"]') })
       .filter({ hasText: "Drink water" });
     const checkbox = habitRow.locator('input[type="checkbox"]').first();
-    // O input do check é `sr-only` com o anel desenhado por cima (mesmo padrão
-    // do desenho novo, na rotina do dashboard e na página de rotinas). Clicar no
-    // input não passa o teste de alvo do Playwright — quem recebe o clique é o
-    // anel, irmão dele dentro do `<label>`. Então clica-se no LABEL, que é o que
-    // uma pessoa acerta.
+    // The check's input is `sr-only` with the ring drawn on top (the new design's
+    // pattern, on the dashboard routine and on the routines page). Clicking the
+    // input fails Playwright's hit-target test — what receives the click is the
+    // ring, its sibling inside the `<label>`. So click the LABEL, which is what a
+    // person actually hits.
     const checkToggle = habitRow.locator('label:has(input[type="checkbox"])').first();
     await expect(checkbox).toBeVisible();
 

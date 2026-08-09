@@ -23,13 +23,13 @@ export class HabitFormPage {
   constructor(private readonly page: Page) {}
 
   /**
-   * O formulário abre num modal (criar e editar reutilizam o mesmo), então só
-   * existe um `<form>` visível de cada vez. `:visible` é o discriminador.
+   * The form opens in a modal (create and edit reuse the same one), so only one
+   * `<form>` is visible at a time. `:visible` is the discriminator.
    */
   readonly form = (): Locator => this.page.locator("form:visible");
 
-  // Ids do formulário redesenhado (`habit-name`, `habit-description`,
-  // `habit-motivation`); antes eram atributos `name` em CamelCase.
+  // Ids of the redesigned form (`habit-name`, `habit-description`,
+  // `habit-motivation`); they used to be CamelCase `name` attributes.
   readonly nameInput = (): Locator => this.form().locator("#habit-name");
   readonly descriptionInput = (): Locator =>
     this.form().locator("#habit-description");
@@ -38,7 +38,7 @@ export class HabitFormPage {
   readonly iconSearchInput = (): Locator =>
     this.form().locator('input[name="icon-small"]');
 
-  // Criar e editar compartilham o mesmo rótulo de envio no desenho novo.
+  // Create and edit share the same submit label in the new design.
   readonly createButton = (): Locator =>
     this.form().getByRole("button", { name: "Save habit", exact: true });
   readonly editButton = (): Locator => this.createButton();
@@ -61,8 +61,9 @@ export class HabitFormPage {
   }
 
   /**
-   * Importância e dificuldade viraram `SegmentedControl`: um `role=radiogroup`
-   * rotulado, com `role=radio` dentro. Eram input+label irmãos.
+   * Importance and difficulty became a `SegmentedControl`: a labelled
+   * `role=radiogroup` with `role=radio` inside. They used to be sibling
+   * input+label pairs.
    */
   private radio(group: string, level: string): Locator {
     return this.form()
@@ -116,7 +117,7 @@ export class HabitFormPage {
     ).toBeVisible();
   }
 
-  /** O formulário virou modal: abre pelo botão do cabeçalho da página. */
+  /** The form became a modal: it opens through the page header's button. */
   async openCreateForm(): Promise<void> {
     await this.page.getByTestId("create-habit").click();
     await this.expectCreateFormVisible();

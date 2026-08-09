@@ -32,20 +32,20 @@ export class HabitsPage {
   }
 
   /**
-   * A linha de cabeçalho do cartão: ícone, nome e as ações. Ancorar numa classe
-   * (`border-primary`) parou de funcionar quando o cartão passou a usar os
-   * tokens do redesenho; o pai imediato do título é estrutural e não muda com
-   * a folha de estilo.
+   * The card's header row: icon, name and the actions. Anchoring on a class
+   * (`border-primary`) stopped working once the card moved to the redesign's
+   * tokens; the title's immediate parent is structural and does not change with
+   * the stylesheet.
    */
   private cardOf(name: string): Locator {
     return this.habitCard(name).locator("xpath=..");
   }
 
   /**
-   * Editar e excluir moram no topo do cartão desde o redesenho: no desktop
-   * aparecem no hover (opacidade), no telefone ficam sempre à mostra. Opacidade
-   * não bloqueia clique nem esconde do Playwright, então não há mais nada a
-   * expandir antes de agir.
+   * Edit and delete live at the top of the card since the redesign: on desktop
+   * they appear on hover (opacity), on a phone they are always in view. Opacity
+   * neither blocks a click nor hides them from Playwright, so there is nothing
+   * left to expand before acting.
    */
   async clickEdit(name: string): Promise<void> {
     await this.cardOf(name).getByRole("button", { name: "Edit" }).click();
