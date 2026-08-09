@@ -134,7 +134,8 @@ test.describe("AI personalized onboarding", () => {
 
     // The manual dashboard spotlight starts.
     await expect(
-      page.getByRole("heading", { name: "Your Profile" }),
+      // Primeiro passo do holofote do dashboard desde que o passo do perfil saiu.
+      page.getByRole("heading", { name: "Quick Shortcuts" }),
     ).toBeVisible();
   });
 });

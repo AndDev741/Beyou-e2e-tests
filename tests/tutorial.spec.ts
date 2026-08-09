@@ -58,8 +58,11 @@ test.describe("Onboarding tutorial", () => {
     // Past the fork we're now in the dashboard spotlight phase, so the
     // SpotlightTutorial tooltip should show — the modal's "Skip tutorial"
     // button is gone, but the spotlight's "Skip tutorial" link appears.
+    // "Quick Shortcuts" is the FIRST step: the profile step was dropped in the
+    // redesign, where the dashboard opens with a greeting instead of a profile
+    // card — the spotlight had nothing to point at.
     await expect(
-      freshAuthedPage.getByRole("heading", { name: "Your Profile" }),
+      freshAuthedPage.getByRole("heading", { name: "Quick Shortcuts" }),
     ).toBeVisible();
   });
 
@@ -97,11 +100,7 @@ test.describe("Onboarding tutorial", () => {
     });
 
     await test.step("dashboard spotlight → click Categories shortcut", async () => {
-      await expect(
-        page.getByRole("heading", { name: "Your Profile" }),
-      ).toBeVisible();
-      await clickNext(page);
-
+      // Dois passos, não três: o do perfil saiu com o redesenho.
       await expect(
         page.getByRole("heading", { name: "Quick Shortcuts" }),
       ).toBeVisible();

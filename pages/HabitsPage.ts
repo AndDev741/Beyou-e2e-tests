@@ -31,36 +31,27 @@ export class HabitsPage {
     await expect(this.habitCard(name)).toHaveCount(0);
   }
 
-  /** The full card DOM node wrapping a habit identified by name. */
+  /**
+   * A linha de cabeçalho do cartão: ícone, nome e as ações. Ancorar numa classe
+   * (`border-primary`) parou de funcionar quando o cartão passou a usar os
+   * tokens do redesenho; o pai imediato do título é estrutural e não muda com
+   * a folha de estilo.
+   */
   private cardOf(name: string): Locator {
-    return this.habitCard(name).locator(
-      "xpath=ancestor::div[contains(@class,'border-primary')][1]",
-    );
+    return this.habitCard(name).locator("xpath=..");
   }
 
   /**
-   * Ensure the card is expanded so its Edit / Delete buttons are visible.
-   * The toggle is a <button aria-label="Expand"|"Collapse">, so we only
-   * click it when the action area is still hidden — otherwise we'd flip
-   * it back closed.
+   * Editar e excluir moram no topo do cartão desde o redesenho: no desktop
+   * aparecem no hover (opacidade), no telefone ficam sempre à mostra. Opacidade
+   * não bloqueia clique nem esconde do Playwright, então não há mais nada a
+   * expandir antes de agir.
    */
-  async expandHabit(name: string): Promise<void> {
-    const card = this.cardOf(name);
-    const deleteButton = card.getByRole("button", { name: "Delete" }).first();
-    if (await deleteButton.isVisible().catch(() => false)) {
-      return;
-    }
-    await card.getByRole("button", { name: "Expand" }).click();
-    await deleteButton.waitFor({ state: "visible" });
-  }
-
   async clickEdit(name: string): Promise<void> {
-    await this.expandHabit(name);
     await this.cardOf(name).getByRole("button", { name: "Edit" }).click();
   }
 
   async deleteHabit(name: string): Promise<void> {
-    await this.expandHabit(name);
     const card = this.cardOf(name);
     // The card's "Delete" opens a global confirmation dialog (DeleteModal
     // portals to document.body with role="dialog"); confirm inside it.

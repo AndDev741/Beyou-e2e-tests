@@ -39,6 +39,12 @@ test.describe("Routine check-in", () => {
       .filter({ has: authedPage.locator('input[type="checkbox"]') })
       .filter({ hasText: "Drink water" });
     const checkbox = habitRow.locator('input[type="checkbox"]').first();
+    // O input do check é `sr-only` com o anel desenhado por cima (mesmo padrão
+    // do desenho novo, na rotina do dashboard e na página de rotinas). Clicar no
+    // input não passa o teste de alvo do Playwright — quem recebe o clique é o
+    // anel, irmão dele dentro do `<label>`. Então clica-se no LABEL, que é o que
+    // uma pessoa acerta.
+    const checkToggle = habitRow.locator('label:has(input[type="checkbox"])').first();
 
     await expect(checkbox).toBeVisible();
     await expect(checkbox).not.toBeChecked();
@@ -53,7 +59,7 @@ test.describe("Routine check-in", () => {
           (response) =>
             response.url().endsWith("/routine/check") && response.ok(),
         ),
-        checkbox.click(),
+        checkToggle.click(),
       ]);
       await expect(checkbox).toBeChecked();
     });

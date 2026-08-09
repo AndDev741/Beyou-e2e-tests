@@ -51,21 +51,25 @@ test.describe("Dashboard goals layout (Bug 4)", () => {
     await authedPage.setViewportSize({ width: 375, height: 812 });
     await authedPage.goto("/dashboard");
 
-    // The goal renders as an <h2> inside its GoalBox card.
-    const goalHeading = authedPage.getByRole("heading", {
-      name: "Read 10 pages",
-    });
-    await expect(goalHeading).toBeVisible();
+    // O bloco de metas do dashboard virou lista: cada meta é um botão com o
+    // nome truncado, não mais um cartão de 350px dentro de um carrossel. O
+    // nome, por isso, não é mais heading.
+    const goalRow = authedPage.getByRole("button", { name: /Read 10 pages/ });
+    await expect(goalRow).toBeVisible();
 
-    // Walk up to the nearest horizontal scroll container (the GoalsTab carousel).
-    const scroller = goalHeading.locator(
-      "xpath=ancestor::div[contains(@class,'overflow-x-auto')][1]",
+    // A regressão que importa continua a mesma: nada de rolagem horizontal na
+    // página por causa de uma meta. Sem carrossel para medir, mede-se o
+    // documento — que é onde o usuário sentiria o estouro.
+    const documentOverflowPx = await authedPage.evaluate(
+      () =>
+        document.documentElement.scrollWidth -
+        document.documentElement.clientWidth,
     );
-    const overflowPx = await scroller.evaluate(
-      (el) => el.scrollWidth - el.clientWidth,
-    );
+    expect(documentOverflowPx).toBeLessThanOrEqual(1);
 
-    // BUG: the 350px non-shrinking readonly card overflows a 375px viewport.
-    expect(overflowPx).toBeLessThanOrEqual(1);
+    // E a linha da meta cabe na viewport (o truncate faz o serviço).
+    const box = await goalRow.boundingBox();
+    expect(box).not.toBeNull();
+    expect(box!.x + box!.width).toBeLessThanOrEqual(375 + 1);
   });
 });
