@@ -76,7 +76,7 @@ test.describe("AI personalized onboarding", () => {
     await test.step("summary -> start using -> tutorial completed", async () => {
       await expect(page.getByText("You're all set!")).toBeVisible();
       await expect(page.getByText("AI Starter Routine")).toBeVisible();
-      await page.getByRole("button", { name: "Start using BeYou" }).click();
+      await page.getByRole("button", { name: "Start using Beyou" }).click();
       // completeTutorial persists the backend flag then clears the local phase.
       await expect
         .poll(
