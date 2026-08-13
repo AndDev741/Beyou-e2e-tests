@@ -457,3 +457,234 @@ export function currentWeekDay(): WeekDay {
   ];
   return names[new Date().getDay()];
 }
+
+/* -------------------------------------------------------------------------- */
+/* Check history + streak scalars                                             */
+/* -------------------------------------------------------------------------- */
+
+/** One habit as `GET /habit` returns it, including the check scalars. */
+export interface HabitSnapshot {
+  id: string;
+  name: string;
+  xp: number;
+  level: number;
+  currentStreak: number;
+  bestStreak: number;
+  totalCheckIns: number;
+  firstCheckInDate: string | null;
+  streakDormant: boolean;
+}
+
+export type CheckDayOutcome =
+  | "DONE"
+  | "SKIPPED"
+  | "MISSED"
+  | "NOT_SCHEDULED"
+  | "NOT_IN_ROUTINE"
+  | "UNKNOWN";
+
+export interface CheckHistory {
+  ownerType: string;
+  ownerId: string;
+  /** The EFFECTIVE range, which a wide request comes back clamped to. */
+  from: string;
+  to: string;
+  days: Array<{ day: string; outcome: CheckDayOutcome }>;
+}
+
+/** Every habit with its streak scalars, so a test can read the numbers the card shows. */
+export async function fetchHabits(
+  ctx: APIRequestContext,
+  accessToken: string,
+): Promise<HabitSnapshot[]> {
+  const response = await ctx.get(joinUrl("habit"), {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!response.ok()) {
+    throw new Error(`fetchHabits failed: ${response.status()}`);
+  }
+  return (await response.json()) as HabitSnapshot[];
+}
+
+/** One habit by name. Throws rather than returning undefined so a typo fails loudly. */
+export async function fetchHabit(
+  ctx: APIRequestContext,
+  accessToken: string,
+  name: string,
+): Promise<HabitSnapshot> {
+  const rows = await fetchHabits(ctx, accessToken);
+  const match = rows.find((row) => row.name === name);
+  if (!match) {
+    throw new Error(`fetchHabit: no habit named "${name}"`);
+  }
+  return match;
+}
+
+/**
+ * `GET /check-history`. Omitting the range gets the endpoint's default of the
+ * last 28 days ending on the OWNER's today — which is what the widget asks for,
+ * so a test that wants the same window should also pass no dates.
+ *
+ * Returns the raw response too: several of the guarantees here are about status
+ * codes and error keys, not about the body.
+ */
+export async function fetchCheckHistoryResponse(
+  ctx: APIRequestContext,
+  accessToken: string,
+  query: Record<string, string>,
+) {
+  return ctx.get(joinUrl("check-history"), {
+    headers: { Authorization: `Bearer ${accessToken}` },
+    params: query,
+  });
+}
+
+export async function fetchCheckHistory(
+  ctx: APIRequestContext,
+  accessToken: string,
+  query: Record<string, string>,
+): Promise<CheckHistory> {
+  const response = await fetchCheckHistoryResponse(ctx, accessToken, query);
+  if (!response.ok()) {
+    const body = await response.text();
+    throw new Error(`fetchCheckHistory failed: ${response.status()} — ${body}`);
+  }
+  return (await response.json()) as CheckHistory;
+}
+
+/** The outcome stored for one day, or UNKNOWN when the range carries no such day. */
+export function outcomeOn(history: CheckHistory, day: string): CheckDayOutcome {
+  return history.days.find((entry) => entry.day === day)?.outcome ?? "UNKNOWN";
+}
+
+export async function deleteHabit(
+  ctx: APIRequestContext,
+  accessToken: string,
+  habitId: string,
+): Promise<void> {
+  const response = await ctx.delete(joinUrl(`habit/${habitId}`), {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!response.ok()) {
+    throw new Error(`deleteHabit failed: ${response.status()}`);
+  }
+}
+
+export async function deleteRoutine(
+  ctx: APIRequestContext,
+  accessToken: string,
+  routineId: string,
+): Promise<void> {
+  const response = await ctx.delete(joinUrl(`routine/${routineId}`), {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!response.ok()) {
+    throw new Error(`deleteRoutine failed: ${response.status()}`);
+  }
+}
+
+/**
+ * Today as `yyyy-MM-dd` in the runner's local zone.
+ *
+ * The backend stores a check under the USER's zone, and a test user is created
+ * with whatever zone the backend defaults to — so this only lines up while the
+ * two agree. It does in CI (both UTC) and on a dev machine (the profile is
+ * seeded from the browser). A test that needs to survive a mismatch should read
+ * the day back out of the response instead of computing it.
+ */
+export function todayIso(): string {
+  const now = new Date();
+  const pad = (value: number) => String(value).padStart(2, "0");
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+}
+
+/** A routine as `GET /routine` returns it, down to the group ids a check needs. */
+export interface RoutineSnapshot {
+  id: string;
+  name: string;
+  routineSections: Array<{
+    id: string;
+    name: string;
+    iconId: string;
+    startTime: string;
+    endTime: string;
+    favorite?: boolean;
+    habitGroup?: Array<{ id: string; habitId: string; startTime: string; endTime?: string }>;
+    taskGroup?: Array<{ id: string; taskId: string; startTime: string; endTime?: string }>;
+  }>;
+}
+
+export async function fetchRoutines(
+  ctx: APIRequestContext,
+  accessToken: string,
+): Promise<RoutineSnapshot[]> {
+  const response = await ctx.get(joinUrl("routine"), {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!response.ok()) {
+    throw new Error(`fetchRoutines failed: ${response.status()}`);
+  }
+  return (await response.json()) as RoutineSnapshot[];
+}
+
+/**
+ * Check today's instance of a habit, the way the dashboard does.
+ *
+ * `POST /routine/check` wants the habit GROUP — the habit's placement inside a
+ * routine section — not the habit, so this walks the routines to find it. Returns
+ * the `RefreshUiDTO`, which is where the post-check streak scalars live.
+ */
+export async function checkHabitToday(
+  ctx: APIRequestContext,
+  accessToken: string,
+  habitId: string,
+): Promise<{
+  refreshHabit?: {
+    id: string;
+    xp: number;
+    level: number;
+    currentStreak: number;
+    bestStreak: number;
+    totalCheckIns: number;
+  };
+  refreshUser?: { currentConstance: number; maxConstance: number; xp: number };
+}> {
+  const routines = await fetchRoutines(ctx, accessToken);
+  for (const routine of routines) {
+    for (const section of routine.routineSections ?? []) {
+      const group = (section.habitGroup ?? []).find((entry) => entry.habitId === habitId);
+      if (!group) continue;
+
+      const response = await ctx.post(joinUrl("routine/check"), {
+        headers: { Authorization: `Bearer ${accessToken}` },
+        data: {
+          routineId: routine.id,
+          habitGroupDTO: { habitGroupId: group.id, startTime: group.startTime },
+        },
+      });
+      if (!response.ok()) {
+        const body = await response.text();
+        throw new Error(`checkHabitToday failed: ${response.status()} — ${body}`);
+      }
+      return await response.json();
+    }
+  }
+  throw new Error(`checkHabitToday: habit ${habitId} sits in no routine section`);
+}
+
+/** `PUT /routine/{id}`. The id rides the path; the body is the create payload plus ids. */
+export async function editRoutine(
+  ctx: APIRequestContext,
+  accessToken: string,
+  routineId: string,
+  payload: RoutinePayload,
+): Promise<void> {
+  const response = await ctx.put(joinUrl(`routine/${routineId}`), {
+    headers: { Authorization: `Bearer ${accessToken}` },
+    data: payload,
+  });
+  if (!response.ok()) {
+    const body = await response.text();
+    throw new Error(`editRoutine failed: ${response.status()} — ${body}`);
+  }
+}
