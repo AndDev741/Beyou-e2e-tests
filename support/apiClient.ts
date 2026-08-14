@@ -401,19 +401,20 @@ export async function increaseGoal(
   ctx: APIRequestContext,
   accessToken: string,
   goalId: string,
-  value?: number,
 ): Promise<GoalRow> {
   const response = await ctx.put(joinUrl("goal/increase"), {
     headers: {
       Authorization: `Bearer ${accessToken}`,
       "Content-Type": "application/json",
     },
-    data: { goalId, value },
+    // Backend takes a raw `@RequestBody UUID goalId`, which Jackson expects as
+    // a JSON-encoded string ("<uuid>" with quotes). Passing the bare UUID
+    // string returns 403 — Playwright sends raw bodies as-is.
+    data: JSON.stringify(goalId),
   });
   if (!response.ok()) {
-    // The body, not just the status: a bare "403" says nothing, and these two were
-    // the only helpers dropping it — which is exactly what made a CI-only failure
-    // here impossible to read.
+    // The body, not just the status: a bare "403" says nothing, and this helper
+    // was one of two dropping it.
     const body = await response.text();
     throw new Error(
       `increaseGoal failed: ${response.status()} ${response.statusText()} — ${body}`,
