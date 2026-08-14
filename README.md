@@ -26,7 +26,7 @@ Beyou-e2e-tests/
 | `tests/auth-failures.spec.ts` | Wrong password, unknown email (no enumeration), weak password, invalid email — locked-in error UX |
 | `tests/logout.spec.ts` | Logout invalidates the session, purges PII from redux-persist, blocks `/dashboard` for unauthed users, lets the same creds log back in |
 | `tests/habits.spec.ts` | Create → edit → delete a habit through the UI |
-| `tests/goals.spec.ts` | API-only: `/goal/increase` awards no XP, `/goal/complete` does — locks in the asymmetry |
+| `tests/goals.spec.ts` | API-only: `/goal/increase` awards no XP, `/goal/complete` does — locks in the asymmetry. Also that increase/decrease move by the amount they are given and that progress is what starts a goal |
 | `tests/routine-checkin.spec.ts` | Check a habit on today's routine → XP and constance go up; checkbox state survives a reload |
 | `tests/tutorial.spec.ts` | Skip, walk the 5-step intro, **and** walk the whole onboarding journey end to end (intro → dashboard → categories → habits → routines → config) |
 
