@@ -345,4 +345,88 @@ test.describe("Check history", () => {
     expect(habit.firstCheckInDate).toBeNull();
     expect(habit.streakDormant).toBe(false);
   });
+
+  test("a malformed parameter is refused inside the errorKey envelope too", async ({ api }) => {
+    // `ownerType` is hand-parsed to keep a bad value inside `{errorKey, message}`.
+    // The other three bind through Spring, and a client that only understands the
+    // envelope shows a generic failure for anything that escapes it.
+    const badOwnerId = await fetchCheckHistoryResponse(api.ctx, api.accessToken, {
+      ownerType: "HABIT",
+      ownerId: "not-a-uuid",
+    });
+    expect(badOwnerId.status()).toBe(400);
+    expect((await badOwnerId.json()).errorKey).toBe("INVALID_REQUEST");
+
+    const badFrom = await fetchCheckHistoryResponse(api.ctx, api.accessToken, {
+      ownerType: "USER",
+      from: "13/08/2026",
+    });
+    expect(badFrom.status()).toBe(400);
+    expect((await badFrom.json()).errorKey).toBe("INVALID_REQUEST");
+
+    // An extreme date used to answer 500: the 28-day default was derived before the
+    // range was bounded, and LocalDate underflowed.
+    const absurdTo = await fetchCheckHistoryResponse(api.ctx, api.accessToken, {
+      ownerType: "USER",
+      to: "-999999999-01-01",
+    });
+    expect(absurdTo.status()).toBe(400);
+    expect((await absurdTo.json()).errorKey).toBe("INVALID_REQUEST");
+  });
+
+  test("a routine's history answers correctly and carries nothing", async ({ api }) => {
+    const { habitId, routineId } = await seedCheckableHabit(api, {
+      habit: "Drink water",
+      routine: "Morning routine",
+    });
+    await checkHabitToday(api.ctx, api.accessToken, habitId);
+
+    // No writer records routine-level presence. The type is accepted so the route is
+    // not shaped around today's writers, and this pins the contract: if somebody adds
+    // that writer, this test is where the change gets noticed.
+    const history = await fetchCheckHistory(api.ctx, api.accessToken, {
+      ownerType: "ROUTINE",
+      ownerId: routineId,
+    });
+    expect(history.days.every((entry) => entry.outcome === "UNKNOWN")).toBe(true);
+  });
+
+  test("the habits list reflects a check-in immediately, cache or no cache", async ({
+    api,
+  }) => {
+    const { habitId } = await seedCheckableHabit(api, {
+      habit: "Drink water",
+      routine: "Morning routine",
+    });
+
+    // Warm whatever cache sits in front of the list, then check, then read again.
+    // `GET /habit` is cached for thirty minutes per user; a check that does not evict
+    // it serves a stale streak to every device for that long, and the only symptom is
+    // a number that refuses to move.
+    const before = await fetchHabit(api.ctx, api.accessToken, "Drink water");
+    expect(before.currentStreak).toBe(0);
+
+    await checkHabitToday(api.ctx, api.accessToken, habitId);
+
+    const after = await fetchHabit(api.ctx, api.accessToken, "Drink water");
+    expect(after.currentStreak).toBe(1);
+    expect(after.totalCheckIns).toBe(1);
+    expect(after.xp).toBeGreaterThan(before.xp);
+  });
+
+  /**
+   * NOT COVERED HERE, on purpose: unskipping a closed past day.
+   *
+   * `PUT /routine/skip` with `skip:false` on a past date used to overwrite a stored
+   * DONE with MISSED, because the guard read live check rows that the midnight
+   * snapshot pass has already removed. Driving it needs a day whose live rows are
+   * gone and whose history row remains — i.e. a real snapshot boundary. Through the
+   * API alone a fresh database cannot get there: `POST /routine/check` with a past
+   * `localDate` writes no row for that day (verified — the day stays UNKNOWN), and
+   * back-dating is the snapshot endpoint's job.
+   *
+   * So this belongs in a backend integration test that owns the snapshot ordering,
+   * not here. Left written down rather than silently skipped, because the guarantee
+   * matters more than where it is asserted.
+   */
 });

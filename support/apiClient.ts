@@ -401,16 +401,14 @@ export async function increaseGoal(
   ctx: APIRequestContext,
   accessToken: string,
   goalId: string,
+  value?: number,
 ): Promise<GoalRow> {
   const response = await ctx.put(joinUrl("goal/increase"), {
     headers: {
       Authorization: `Bearer ${accessToken}`,
       "Content-Type": "application/json",
     },
-    // Backend takes a raw `@RequestBody UUID goalId`, which Jackson expects as
-    // a JSON-encoded string ("<uuid>" with quotes). Passing the bare UUID
-    // string returns 403 — Playwright sends raw bodies as-is.
-    data: JSON.stringify(goalId),
+    data: { goalId, value },
   });
   if (!response.ok()) {
     throw new Error(
@@ -687,4 +685,83 @@ export async function editRoutine(
     const body = await response.text();
     throw new Error(`editRoutine failed: ${response.status()} — ${body}`);
   }
+}
+
+/**
+ * Check a habit on a specific day, the way the routine UI does with a back-date.
+ *
+ * `POST /routine/check` takes the habit GROUP plus an optional `localDate`; omitting
+ * the date means the owner's today.
+ */
+export async function checkHabitOn(
+  ctx: APIRequestContext,
+  accessToken: string,
+  habitId: string,
+  localDate: string,
+): Promise<void> {
+  const placement = await findHabitPlacement(ctx, accessToken, habitId);
+  const response = await ctx.post(joinUrl("routine/check"), {
+    headers: { Authorization: `Bearer ${accessToken}` },
+    data: {
+      routineId: placement.routineId,
+      localDate,
+      habitGroupDTO: { habitGroupId: placement.groupId, startTime: placement.startTime },
+    },
+  });
+  if (!response.ok()) {
+    throw new Error(`checkHabitOn failed: ${response.status()} — ${await response.text()}`);
+  }
+}
+
+/**
+ * `PUT /routine/skip` with `skip: false` on a given day.
+ *
+ * Unskipping a day nobody skipped is the path that used to overwrite a stored check
+ * with a miss, so it is worth being able to drive from a test.
+ */
+export async function unskipHabitOn(
+  ctx: APIRequestContext,
+  accessToken: string,
+  routineId: string,
+  habitId: string,
+  localDate: string,
+): Promise<void> {
+  const placement = await findHabitPlacement(ctx, accessToken, habitId);
+  const response = await ctx.put(joinUrl("routine/skip"), {
+    headers: { Authorization: `Bearer ${accessToken}` },
+    data: {
+      routineId,
+      localDate,
+      skip: false,
+      habitGroupDTO: { habitGroupId: placement.groupId, startTime: placement.startTime },
+    },
+  });
+  if (!response.ok()) {
+    throw new Error(`unskipHabitOn failed: ${response.status()} — ${await response.text()}`);
+  }
+}
+
+/** Where a habit sits: which routine, which group, at what time. */
+async function findHabitPlacement(
+  ctx: APIRequestContext,
+  accessToken: string,
+  habitId: string,
+): Promise<{ routineId: string; groupId: string; startTime: string }> {
+  const routines = await fetchRoutines(ctx, accessToken);
+  for (const routine of routines) {
+    for (const section of routine.routineSections ?? []) {
+      const group = (section.habitGroup ?? []).find((entry) => entry.habitId === habitId);
+      if (group) {
+        return { routineId: routine.id, groupId: group.id, startTime: group.startTime };
+      }
+    }
+  }
+  throw new Error(`findHabitPlacement: habit ${habitId} sits in no routine section`);
+}
+
+/** `iso` shifted by `days`, which may be negative. Anchored at UTC noon, so DST cannot slip a day. */
+export function addDaysIso(iso: string, days: number): string {
+  const anchor = new Date(`${iso}T12:00:00Z`);
+  anchor.setUTCDate(anchor.getUTCDate() + days);
+  return anchor.toISOString().slice(0, 10);
 }
