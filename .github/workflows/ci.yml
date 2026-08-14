@@ -101,3 +101,12 @@ jobs:
           name: playwright-report
           path: e2e/playwright-report/
           retention-days: 7
+
+      # The server side of a failure. Without this the only evidence a CI-only
+      # failure leaves is the status code the client saw, which cannot tell an
+      # application refusal from a security-layer one. The frontend repo's own e2e
+      # job has dumped these from the start; this one never did.
+      - name: Backend logs on failure
+        if: failure()
+        working-directory: dev-env
+        run: docker compose -f docker-compose.e2e.yml logs --tail 400 backend
