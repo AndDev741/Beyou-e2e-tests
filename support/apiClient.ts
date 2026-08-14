@@ -411,8 +411,12 @@ export async function increaseGoal(
     data: { goalId, value },
   });
   if (!response.ok()) {
+    // The body, not just the status: a bare "403" says nothing, and these two were
+    // the only helpers dropping it — which is exactly what made a CI-only failure
+    // here impossible to read.
+    const body = await response.text();
     throw new Error(
-      `increaseGoal failed: ${response.status()} ${response.statusText()}`,
+      `increaseGoal failed: ${response.status()} ${response.statusText()} — ${body}`,
     );
   }
   return (await response.json()) as GoalRow;
@@ -433,8 +437,9 @@ export async function completeGoal(
     data: JSON.stringify(goalId),
   });
   if (!response.ok()) {
+    const body = await response.text();
     throw new Error(
-      `completeGoal failed: ${response.status()} ${response.statusText()}`,
+      `completeGoal failed: ${response.status()} ${response.statusText()} — ${body}`,
     );
   }
   return (await response.json()) as {
