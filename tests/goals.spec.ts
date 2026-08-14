@@ -3,6 +3,7 @@ import {
   completeGoal,
   createCategory,
   createGoal,
+  decreaseGoal,
   fetchUserSnapshot,
   increaseGoal,
 } from "../support/apiClient";
@@ -76,6 +77,50 @@ test.describe("Goal XP", () => {
       // mismatch here means the backend wrote a different XP value than it
       // reported in the response.
       expect(after.xp).toBeCloseTo(refresh.refreshUser.xp, 5);
+    });
+  });
+
+  test("increase takes an amount and starts the goal", async ({ api }) => {
+    const today = new Date();
+    const oneWeekOut = new Date(today);
+    oneWeekOut.setDate(today.getDate() + 7);
+    const iso = (d: Date) => d.toISOString().slice(0, 10);
+
+    const { id: categoryId } = await createCategory(api.ctx, api.accessToken, {
+      name: "Fitness",
+      icon: "icon:fa-dumbbell",
+      experience: "BEGINNER",
+    });
+
+    const { id: goalId } = await createGoal(api.ctx, api.accessToken, {
+      name: "Run forty kilometres",
+      description: "Across the week",
+      iconId: "icon:fa-person-running",
+      targetValue: 40,
+      unit: "km",
+      currentValue: 0,
+      categoriesId: [categoryId],
+      startDate: iso(today),
+      endDate: iso(oneWeekOut),
+      status: "NOT_STARTED",
+      term: "SHORT_TERM",
+    });
+
+    await test.step("the amount is what moves, not a fixed 1", async () => {
+      const goal = await increaseGoal(api.ctx, api.accessToken, goalId, 12);
+      expect(goal.currentValue).toBe(12);
+      // Progress is what starts a goal: no edit needed to leave NOT_STARTED.
+      expect(goal.status).toBe("IN_PROGRESS");
+    });
+
+    await test.step("decrease takes an amount too, and floors at zero", async () => {
+      const back = await decreaseGoal(api.ctx, api.accessToken, goalId, 5);
+      expect(back.currentValue).toBe(7);
+
+      const floored = await decreaseGoal(api.ctx, api.accessToken, goalId, 99);
+      expect(floored.currentValue).toBe(0);
+      // Correcting a wrong increment does not un-start the goal.
+      expect(floored.status).toBe("IN_PROGRESS");
     });
   });
 });

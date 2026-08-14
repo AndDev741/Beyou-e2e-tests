@@ -364,6 +364,7 @@ interface GoalRow {
   name: string;
   currentValue: number;
   complete: boolean;
+  status: "NOT_STARTED" | "IN_PROGRESS" | "COMPLETED";
 }
 
 export async function createGoal(
@@ -401,16 +402,17 @@ export async function increaseGoal(
   ctx: APIRequestContext,
   accessToken: string,
   goalId: string,
+  value = 1,
 ): Promise<GoalRow> {
   const response = await ctx.put(joinUrl("goal/increase"), {
     headers: {
       Authorization: `Bearer ${accessToken}`,
       "Content-Type": "application/json",
     },
-    // Backend takes a raw `@RequestBody UUID goalId`, which Jackson expects as
-    // a JSON-encoded string ("<uuid>" with quotes). Passing the bare UUID
-    // string returns 403 — Playwright sends raw bodies as-is.
-    data: JSON.stringify(goalId),
+    // `UpdateGoalValueDTO`: the id plus how much to move by. `value` is optional
+    // on the wire and defaults to 1 server-side, which is what the card's +
+    // sends.
+    data: { goalId, value },
   });
   if (!response.ok()) {
     // The body, not just the status: a bare "403" says nothing, and this helper
@@ -418,6 +420,27 @@ export async function increaseGoal(
     const body = await response.text();
     throw new Error(
       `increaseGoal failed: ${response.status()} ${response.statusText()} — ${body}`,
+    );
+  }
+  return (await response.json()) as GoalRow;
+}
+
+export async function decreaseGoal(
+  ctx: APIRequestContext,
+  accessToken: string,
+  goalId: string,
+  value = 1,
+): Promise<GoalRow> {
+  const response = await ctx.put(joinUrl("goal/decrease"), {
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+    },
+    data: { goalId, value },
+  });
+  if (!response.ok()) {
+    throw new Error(
+      `decreaseGoal failed: ${response.status()} ${response.statusText()}`,
     );
   }
   return (await response.json()) as GoalRow;
