@@ -43,7 +43,9 @@ test.describe("Account deletion", () => {
 
     await test.step("the right code deletes it", async () => {
       const accepted = await confirmAccountDeletion(api.ctx, api.accessToken, code!);
-      expect(accepted.status()).toBe(200);
+      // The body, not just the status: a bare 403 says nothing, and this endpoint
+      // turns an unhandled 500 into one.
+      expect(accepted.status(), await accepted.text()).toBe(200);
     });
 
     await test.step("the account is gone, not merely signed out", async () => {
@@ -59,7 +61,7 @@ test.describe("Account deletion", () => {
     const { code } = await requestAccountDeletionCode(api.ctx, api.accessToken);
 
     const first = await confirmAccountDeletion(api.ctx, api.accessToken, code!);
-    expect(first.status()).toBe(200);
+    expect(first.status(), await first.text()).toBe(200);
 
     // The account is gone, so the session behind this call is too. Whatever the
     // second attempt answers, it must not be a success.
