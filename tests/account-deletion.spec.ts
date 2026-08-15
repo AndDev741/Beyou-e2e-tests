@@ -35,8 +35,12 @@ import {
  *   and so is the unsent-code cleanup that only runs when the code is NOT exposed.
  *   Closing that needs a capture server (Mailpit or similar) in the dev-env compose.
  *
- * The cooldown IS reachable, but only by turning it back on: `cooldown-seconds: 0`
- * under e2e is what lets the UI walk request a second code seconds after the first.
+ * - `DELETION_CODE_TOO_MANY_REQUESTS`, for the same reason in reverse: the e2e profile
+ *   sets `cooldown-seconds: 0`, which is exactly what lets the UI walk below request a
+ *   second code seconds after the first. It is the refusal a real person is likeliest
+ *   to meet, since the dialog ships a "send another code" button, and the clients now
+ *   open the code step on it rather than dead-ending. Covered by the backend's unit
+ *   tests and by both client suites, where the cooldown can be simulated.
  */
 
 /** Never a valid code, and never the one the server generated. */
