@@ -1,5 +1,6 @@
 import { test, expect } from "../fixtures/auth";
 import { fixtureFor } from "../fixtures/onboardingSuggestions";
+import { fetchHabits } from "../support/apiClient";
 
 /**
  * AI personalized onboarding coverage.
@@ -15,6 +16,7 @@ import { fixtureFor } from "../fixtures/onboardingSuggestions";
 test.describe("AI personalized onboarding", () => {
   test("full AI path creates real entities and lands on a populated app", async ({
     freshAuthedPage: page,
+    api,
   }) => {
     test.setTimeout(90_000);
 
@@ -61,9 +63,16 @@ test.describe("AI personalized onboarding", () => {
       await page.getByRole("button", { name: "Continue" }).click();
     });
 
-    await test.step("routine: accept the draft", async () => {
+    await test.step("routine: accept the draft, including what it adds", async () => {
       await expect(page.getByText("Your daily routine draft")).toBeVisible();
       await expect(page.getByText("Morning run")).toBeVisible();
+
+      // The draft places a habit the user never accepted, and the fixture describes it
+      // under newHabits. Said out loud before the button, because accepting creates it:
+      // an assistant that quietly puts things in your account is a different product
+      // from one that fills a gap in your day.
+      await expect(page.getByTestId("routine-new-items")).toContainText("Wind down");
+
       await page.getByRole("button", { name: "Accept routine" }).click();
     });
 
@@ -71,6 +80,15 @@ test.describe("AI personalized onboarding", () => {
       await expect(page.getByText("Goals to aim for")).toBeVisible();
       await page.getByRole("button", { name: /Run a 10k/ }).click();
       await page.getByRole("button", { name: "Continue" }).click();
+    });
+
+    await test.step("the habit the routine step invented was really created", async () => {
+      // Through the real backend, like everything else this spec creates. Before the
+      // routine step could describe its own items, this placement resolved to nothing
+      // and was dropped without a word — the routine came out missing a step and the
+      // habit never existed.
+      const habits = await fetchHabits(api.ctx, api.accessToken);
+      expect(habits.map((h) => h.name)).toContain("Wind down");
     });
 
     await test.step("summary -> start using -> tutorial completed", async () => {
