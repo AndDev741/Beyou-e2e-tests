@@ -74,10 +74,30 @@ export const ROUTINE_FIXTURE = {
         iconId: "lucide:moon",
         startTime: "19:00",
         endTime: "22:00",
-        habits: [{ name: "Read 10 pages", startTime: "20:00", endTime: "20:30" }],
+        habits: [
+          { name: "Read 10 pages", startTime: "20:00", endTime: "20:30" },
+          // Not among the habits accepted in the previous step. Before the routine
+          // step could describe its own items, a placement like this resolved to
+          // nothing and the client dropped it in silence.
+          { name: "Wind down", startTime: "21:30", endTime: "21:45" },
+        ],
         tasks: [],
       },
     ],
+    // What the plan needs and the user does not have yet. The client creates these
+    // before building the routine, which is what turns the name above into an id.
+    newHabits: [
+      {
+        name: "Wind down",
+        description: "Lights low, screens off",
+        motivationalPhrase: "The day is allowed to end",
+        iconId: "lucide:moon",
+        categoryName: "Health",
+        importance: 3,
+        difficulty: 1,
+      },
+    ],
+    newTasks: [],
   },
 };
 
