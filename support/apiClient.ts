@@ -794,3 +794,59 @@ export function addDaysIso(iso: string, days: number): string {
   anchor.setUTCDate(anchor.getUTCDate() + days);
   return anchor.toISOString().slice(0, 10);
 }
+
+export interface DeletionCodeResponse {
+  success: boolean;
+  /** Present only under the `e2e` Spring profile, where there is no inbox to read. */
+  code?: string;
+}
+
+/**
+ * Step one of deleting an account. Under the e2e profile the backend hands the
+ * code back in the response (`e2e.expose-deletion-code`), which is the only way a
+ * test can carry the flow to its end without a mailbox.
+ */
+export async function requestAccountDeletionCode(
+  ctx: APIRequestContext,
+  accessToken: string,
+): Promise<DeletionCodeResponse> {
+  const response = await ctx.post(joinUrl("user/deletion/code"), {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!response.ok()) {
+    const body = await response.text();
+    throw new Error(
+      `requestAccountDeletionCode failed: ${response.status()} ${response.statusText()} — ${body}`,
+    );
+  }
+  return (await response.json()) as DeletionCodeResponse;
+}
+
+/** Step two: spend the code. Returns the raw response so a test can assert a refusal. */
+export async function confirmAccountDeletion(
+  ctx: APIRequestContext,
+  accessToken: string,
+  code: string,
+) {
+  return ctx.post(joinUrl("user/deletion/confirm"), {
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+    },
+    data: { code },
+  });
+}
+
+/** Everything the account holds, as one JSON object. */
+export async function exportUserData(
+  ctx: APIRequestContext,
+  accessToken: string,
+): Promise<Record<string, unknown>> {
+  const response = await ctx.get(joinUrl("user/export"), {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!response.ok()) {
+    throw new Error(`exportUserData failed: ${response.status()}`);
+  }
+  return (await response.json()) as Record<string, unknown>;
+}
