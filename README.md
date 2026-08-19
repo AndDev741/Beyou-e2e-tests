@@ -29,6 +29,7 @@ Beyou-e2e-tests/
 | `tests/goals.spec.ts` | API-only: `/goal/increase` awards no XP, `/goal/complete` does — locks in the asymmetry. Also that increase/decrease move by the amount they are given and that progress is what starts a goal |
 | `tests/routine-checkin.spec.ts` | Check a habit on today's routine → XP and constance go up; checkbox state survives a reload |
 | `tests/tutorial.spec.ts` | Skip, walk the 5-step intro, **and** walk the whole onboarding journey end to end (intro → dashboard → categories → habits → routines → config) |
+| `tests/user-photo-access.spec.ts` | API-only: `GET /user/photo/{id}` serves the bytes to a signed URL and answers 403 to an unsigned, forged, truncated, re-pointed or re-dated one. Locks in the fix for the endpoint that used to answer anybody who could guess a user id |
 
 Everything except `auth.spec.ts`, `auth-persistence.spec.ts`, and
 `auth-failures.spec.ts` uses `fixtures/auth.ts` to set up an authenticated
