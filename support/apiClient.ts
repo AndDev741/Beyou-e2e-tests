@@ -15,6 +15,12 @@ export interface RegisterPayload {
   name: string;
   email: string;
   password: string;
+  /**
+   * Optional IANA zone, mirroring the real clients: both send the device's
+   * detected zone so an account is not created on the UTC calendar. Omitting it
+   * is also a real case (an older client), and the backend must still register.
+   */
+  timezone?: string;
 }
 
 export interface LoginPayload {
@@ -348,11 +354,21 @@ export async function editUser(
  * Separate from `fetchUserSnapshot`, which re-logs-in: this is the ONLY response
  * that carries the signed profile-photo URL. Login does not mint one (it maps the
  * user without a photo version), so a test about that URL has to come through here.
+ *
+ * The timezone pair is named rather than left to the index signature, because it is
+ * also the real wire check for `timezoneSource`: the OpenAPI snapshot in
+ * `packages/contracts` was hand-edited for that field, so this is what actually
+ * proves the backend emits it.
  */
 export async function fetchProfile(
   ctx: APIRequestContext,
   accessToken: string,
-): Promise<{ photo: string | null; [key: string]: unknown }> {
+): Promise<{
+  photo: string | null;
+  timezone: string;
+  timezoneSource: "DEFAULT" | "DETECTED" | "EXPLICIT";
+  [key: string]: unknown;
+}> {
   const response = await ctx.get(joinUrl("user"), {
     headers: { Authorization: `Bearer ${accessToken}` },
   });
