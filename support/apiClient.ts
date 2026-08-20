@@ -342,6 +342,52 @@ export async function editUser(
   }
 }
 
+/**
+ * The authenticated user's profile, as `GET /user` answers it.
+ *
+ * Separate from `fetchUserSnapshot`, which re-logs-in: this is the ONLY response
+ * that carries the signed profile-photo URL. Login does not mint one (it maps the
+ * user without a photo version), so a test about that URL has to come through here.
+ */
+export async function fetchProfile(
+  ctx: APIRequestContext,
+  accessToken: string,
+): Promise<{ photo: string | null; [key: string]: unknown }> {
+  const response = await ctx.get(joinUrl("user"), {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!response.ok()) {
+    const body = await response.text();
+    throw new Error(
+      `fetchProfile failed: ${response.status()} ${response.statusText()} — ${body}`,
+    );
+  }
+  return response.json();
+}
+
+/**
+ * Upload a profile photo. Multipart rather than JSON, so it cannot go through the
+ * usual `data:` path — Playwright's `multipart` builds the body natively.
+ */
+export async function uploadUserPhoto(
+  ctx: APIRequestContext,
+  accessToken: string,
+  jpeg: Buffer,
+): Promise<void> {
+  const response = await ctx.post(joinUrl("user/photo"), {
+    headers: { Authorization: `Bearer ${accessToken}` },
+    multipart: {
+      file: { name: "photo.jpg", mimeType: "image/jpeg", buffer: jpeg },
+    },
+  });
+  if (!response.ok()) {
+    const body = await response.text();
+    throw new Error(
+      `uploadUserPhoto failed: ${response.status()} ${response.statusText()} — ${body}`,
+    );
+  }
+}
+
 export interface GoalPayload {
   name: string;
   description?: string;
