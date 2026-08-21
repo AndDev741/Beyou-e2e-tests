@@ -114,6 +114,93 @@ test.describe("AI personalized onboarding", () => {
     });
   });
 
+  /**
+   * A retry after a failure partway through a step must not create a second copy of
+   * what already landed.
+   *
+   * Reported from production as an account holding 58 habits after accepting 3. The
+   * step creates every habit, then every task, and only records what it made once
+   * both loops are done, so a task create that fails leaves habits behind that the
+   * wizard has no reference to. The error banner's only forward move re-runs the whole
+   * step.
+   *
+   * Driven through the UI rather than the API on purpose: what is under test is what
+   * the screen sends on the second press.
+   */
+  test("retrying a failed step does not create the habits twice", async ({
+    freshAuthedPage: page,
+    api,
+  }) => {
+    test.setTimeout(90_000);
+    await page.emulateMedia({ reducedMotion: "reduce" });
+
+    await page.route("**/onboarding/suggestions", async (route) => {
+      const body = route.request().postDataJSON() as { step: string };
+      await route.fulfill({ json: fixtureFor(body.step) });
+    });
+
+    // The production trigger reproduced: the task INSERT was the one blowing up, on
+    // an AI description longer than the column. Only the first attempt fails, so the
+    // retry is the pass that gets through. Every other request, GET /task included,
+    // goes to the real backend.
+    let taskCreateAttempts = 0;
+    await page.route("**/task", async (route) => {
+      if (route.request().method() !== "POST") return route.continue();
+      taskCreateAttempts += 1;
+      if (taskCreateAttempts === 1) {
+        return route.fulfill({ status: 400, json: { error: "value too long" } });
+      }
+      return route.continue();
+    });
+
+    await test.step("reach the habits & tasks step", async () => {
+      await page.goto("/dashboard");
+      for (let i = 0; i < 4; i++) {
+        await page.getByRole("button", { name: "Next" }).click();
+      }
+      await page.getByRole("button", { name: "Get Started" }).click();
+      await page.getByRole("button", { name: "Personalized setup" }).click();
+      await page.getByRole("button", { name: "Health", exact: true }).click();
+      await page.getByRole("button", { name: "Career", exact: true }).click();
+      await page.getByRole("button", { name: "Continue" }).click();
+
+      await expect(page.getByText("Habits & tasks for you")).toBeVisible();
+      const selectAlls = page.getByRole("button", { name: "Select all" });
+      await selectAlls.first().click();
+      await selectAlls.last().click();
+      await page.getByRole("button", { name: "Continue" }).click();
+    });
+
+    await test.step("the task fails with both habits already saved", async () => {
+      await expect(
+        page.getByText("AI setup is unavailable right now"),
+      ).toBeVisible();
+
+      // This is the state the retry has to recognise: rows on the server that the
+      // wizard never got to write down.
+      const habits = await fetchHabits(api.ctx, api.accessToken);
+      expect(habits.map((h) => h.name).sort()).toEqual([
+        "Morning run",
+        "Read 10 pages",
+      ]);
+    });
+
+    await test.step("Try again finishes the step without a second copy", async () => {
+      await page.getByRole("button", { name: "Try again" }).click();
+
+      // The routine step only renders once the habits & tasks step has finished, so
+      // reaching it proves the retry created the task rather than tripping again.
+      await expect(page.getByText("Your daily routine draft")).toBeVisible();
+      expect(taskCreateAttempts).toBe(2);
+
+      const habits = await fetchHabits(api.ctx, api.accessToken);
+      expect(habits.map((h) => h.name).sort()).toEqual([
+        "Morning run",
+        "Read 10 pages",
+      ]);
+    });
+  });
+
   test("AI failure offers the hands-on tour fallback", async ({
     freshAuthedPage: page,
   }) => {
