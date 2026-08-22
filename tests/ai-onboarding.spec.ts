@@ -172,9 +172,29 @@ test.describe("AI personalized onboarding", () => {
     });
 
     await test.step("the task fails with both habits already saved", async () => {
+      // The failure screen owns up to what actually happened: a rejected entity
+      // write, named, with the server's reason. The AI-unavailable copy that used
+      // to answer every failure here sent the user (and the diagnosis of the
+      // 58-habits incident) chasing the model for a deterministic 400.
+      await expect(
+        page.getByText("We couldn't save part of your setup"),
+      ).toBeVisible();
+      await expect(
+        page.getByText('Creating the task "Buy running shoes" failed.'),
+      ).toBeVisible();
+      await expect(page.getByTestId("create-error-reason")).toHaveText(
+        "value too long",
+      );
       await expect(
         page.getByText("AI setup is unavailable right now"),
-      ).toBeVisible();
+      ).not.toBeVisible();
+
+      // What the wizard already put on the account is said out loud — the habits
+      // from this very step included, which the old record only wrote down once
+      // the whole step had finished.
+      const saved = page.getByTestId("create-error-saved");
+      await expect(saved).toContainText("Morning run");
+      await expect(saved).toContainText("Read 10 pages");
 
       // This is the state the retry has to recognise: rows on the server that the
       // wizard never got to write down.
