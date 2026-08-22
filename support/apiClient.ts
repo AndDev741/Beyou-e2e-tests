@@ -555,6 +555,8 @@ export function currentWeekDay(): WeekDay {
 export interface HabitSnapshot {
   id: string;
   name: string;
+  /** Canonical icon id (`lucide:<kebab>` / `emoji:<short_name>`) as stored. */
+  iconId: string;
   xp: number;
   level: number;
   currentStreak: number;
