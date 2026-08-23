@@ -12,6 +12,8 @@ export class LoginPage {
   readonly emailInput = () => this.page.getByTestId("login-email-input");
   readonly passwordInput = () => this.page.getByTestId("login-password-input");
   readonly submitButton = () => this.page.getByTestId("login-submit");
+  /** Only rendered once a login has been refused for an unverified address. */
+  readonly resendVerificationButton = () => this.page.getByTestId("resend-verification");
 
   // --- actions ---
 

@@ -77,6 +77,56 @@ export async function registerUser(
 }
 
 /**
+ * Registers an account that has NOT been auto-verified, and hands back its
+ * verification token.
+ *
+ * The `e2e` profile normally marks every new account verified so specs can register
+ * and log in in one breath, which means the whole verification flow — and the resend
+ * endpoint that rescues it — is invisible to the suite. `X-E2E-Skip-Auto-Verify` opts
+ * one registration out, and `e2e.expose-verification-token` puts the token in the
+ * response because nothing in this stack reads a mailbox. Both are e2e-only and
+ * `SecurityConfigValidator` refuses to boot prod with the flag on.
+ */
+export async function registerUnverifiedUser(
+  ctx: APIRequestContext,
+  payload: RegisterPayload,
+): Promise<{ verificationToken: string }> {
+  const response = await ctx.post(joinUrl("auth/register"), {
+    data: payload,
+    headers: { "X-E2E-Skip-Auto-Verify": "true" },
+  });
+  if (!response.ok()) {
+    const body = await response.text();
+    throw new Error(
+      `register (unverified) failed: ${response.status()} ${response.statusText()} — ${body}`,
+    );
+  }
+  const body = await response.json();
+  if (!body.verificationToken) {
+    throw new Error(
+      "the e2e profile must hand the verification token back (e2e.expose-verification-token), " +
+        "or the verification flow cannot be tested",
+    );
+  }
+  return { verificationToken: body.verificationToken };
+}
+
+/**
+ * Asks for another verification mail. Returns the whole body, because what matters
+ * about this endpoint is that the body looks the SAME for an address that exists, one
+ * that does not, and one still inside its cooldown.
+ */
+export async function resendVerification(
+  ctx: APIRequestContext,
+  email: string,
+): Promise<{ status: number; body: Record<string, string> }> {
+  const response = await ctx.post(joinUrl("auth/resend-verification"), {
+    data: { email },
+  });
+  return { status: response.status(), body: await response.json() };
+}
+
+/**
  * Log in and return the JWT plus the cookies (incl. httpOnly refreshToken).
  * The cookies are what we feed into a browser context so the SPA boots
  * authenticated.
