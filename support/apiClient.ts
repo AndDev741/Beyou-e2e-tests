@@ -1,4 +1,4 @@
-import { APIRequestContext, request } from "@playwright/test";
+import { APIRequestContext, APIResponse, request } from "@playwright/test";
 
 /**
  * Thin backend client used by fixtures and tests to set up state without
@@ -898,6 +898,19 @@ export async function confirmAccountDeletion(
       "Content-Type": "application/json",
     },
     data: { code },
+  });
+}
+
+/**
+ * Remove the account's own profile photo. Returns the raw response so a spec can
+ * assert the status rather than only the effect.
+ */
+export async function deleteUserPhoto(
+  ctx: APIRequestContext,
+  accessToken: string,
+): Promise<APIResponse> {
+  return ctx.delete(joinUrl("user/photo"), {
+    headers: { Authorization: `Bearer ${accessToken}` },
   });
 }
 
