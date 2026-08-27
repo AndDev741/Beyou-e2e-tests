@@ -318,10 +318,21 @@ export interface RoutineSection {
   favorite?: boolean;
 }
 
+/** One entry of a LIST routine: exactly one of habitId / taskId, and no times. */
+export interface RoutineListItem {
+  habitId?: string;
+  taskId?: string;
+}
+
 export interface RoutinePayload {
   name: string;
   iconId: string;
-  routineSections: RoutineSection[];
+  /** Absent means DAILY, which is what every caller predating the List type sends. */
+  type?: "DAILY" | "LIST";
+  /** DAILY only. The backend rejects a body that carries these alongside `items`. */
+  routineSections?: RoutineSection[];
+  /** LIST only. Order is position in this array. */
+  items?: RoutineListItem[];
 }
 
 interface RoutineResponse {
