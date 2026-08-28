@@ -988,3 +988,105 @@ export async function exportUserData(
   }
   return (await response.json()) as Record<string, unknown>;
 }
+
+// ---------------------------------------------------------------------------
+// Focus Mode (F6): completed cycles and per-item micro-tasks.
+// ---------------------------------------------------------------------------
+
+export interface FocusMicroTask {
+  id: string;
+  date: string;
+  itemGroupId: string;
+  name: string;
+  pinned: boolean;
+  doneAt: string | null;
+}
+
+export interface FocusCycle {
+  id: string;
+  date: string;
+  itemGroupId: string | null;
+  kind: "POMODORO" | "SHORT_BREAK" | "LONG_BREAK";
+  startedAt: string;
+  endedAt: string;
+  minutes: number;
+}
+
+/**
+ * The item-group ids of a LIST routine, in list order. A list item is checked, skipped and
+ * focused on by its ItemGroup id, the same id `POST /routine/check` takes, which is also
+ * what a micro-task hangs off.
+ */
+export async function fetchListItemGroupIds(
+  ctx: APIRequestContext,
+  accessToken: string,
+  routineId: string,
+): Promise<string[]> {
+  const response = await ctx.get(joinUrl("routine"), {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!response.ok()) {
+    throw new Error(`fetchListItemGroupIds failed: ${response.status()}`);
+  }
+  const routines = (await response.json()) as Array<{
+    id: string;
+    items?: Array<{ id: string; orderIndex: number }>;
+  }>;
+  const routine = routines.find((entry) => entry.id === routineId);
+  if (!routine?.items) {
+    throw new Error(`fetchListItemGroupIds: routine ${routineId} is not a LIST or was not found`);
+  }
+  return [...routine.items].sort((a, b) => a.orderIndex - b.orderIndex).map((item) => item.id);
+}
+
+/** `GET /focus/micro-tasks?itemGroupId=`. Note this read MATERIALISES pinned names on the item. */
+export async function fetchFocusMicroTasks(
+  ctx: APIRequestContext,
+  accessToken: string,
+  itemGroupId: string,
+): Promise<FocusMicroTask[]> {
+  const response = await ctx.get(joinUrl(`focus/micro-tasks?itemGroupId=${itemGroupId}`), {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!response.ok()) {
+    throw new Error(`fetchFocusMicroTasks failed: ${response.status()}`);
+  }
+  return (await response.json()) as FocusMicroTask[];
+}
+
+/** `POST /focus/cycles`. Returns the raw response so a spec can assert on a refusal too. */
+export async function recordFocusCycle(
+  ctx: APIRequestContext,
+  accessToken: string,
+  payload: {
+    itemGroupId: string | null;
+    kind: FocusCycle["kind"];
+    startedAt: string;
+    endedAt: string;
+    minutes: number;
+  },
+) {
+  return ctx.post(joinUrl("focus/cycles"), {
+    headers: { Authorization: `Bearer ${accessToken}` },
+    data: payload,
+  });
+}
+
+/** `GET /focus/day?date=`. Read-only: materialises nothing. */
+export async function fetchFocusDay(
+  ctx: APIRequestContext,
+  accessToken: string,
+  date: string,
+): Promise<{ date: string; cycles: FocusCycle[]; microTasks: FocusMicroTask[] }> {
+  const response = await ctx.get(joinUrl(`focus/day?date=${date}`), {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!response.ok()) {
+    throw new Error(`fetchFocusDay failed: ${response.status()}`);
+  }
+  return (await response.json()) as {
+    date: string;
+    cycles: FocusCycle[];
+    microTasks: FocusMicroTask[];
+  };
+}
