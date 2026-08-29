@@ -83,14 +83,17 @@ test.describe("Focus Mode persistence", () => {
     const [itemA, itemB] = itemIds;
 
     await authedPage.goto("/focus");
+    // Armed BEFORE the click that causes it. The list is read when the item mounts, so a listener
+    // attached afterwards is racing a request that has usually already landed.
+    const firstListRead = authedPage.waitForResponse(
+      (r) => r.url().includes(`/focus/micro-tasks?itemGroupId=${itemA}`) && r.ok(),
+    );
     await authedPage.getByTestId("focus-mode-toggle").click();
     await expect(authedPage.getByTestId("focus-ultra").locator("h2")).toHaveText("Deep work");
 
     await test.step("the screen asks the server for THIS item's list", async () => {
       // The read is keyed by the item group, which is the contract the whole scope rests on.
-      await authedPage.waitForResponse(
-        (r) => r.url().includes(`/focus/micro-tasks?itemGroupId=${itemA}`) && r.ok(),
-      );
+      await firstListRead;
     });
 
     await test.step("write one on the first item", async () => {
@@ -154,6 +157,77 @@ test.describe("Focus Mode persistence", () => {
 
       const day = await fetchFocusDay(api.ctx, api.accessToken, todayIso());
       expect(day.microTasks).toHaveLength(2);
+    });
+  });
+
+  test("dragging a micro-task rewrites the order, and it survives a reload", async ({
+    authedPage,
+    api,
+  }) => {
+    // The one place the drag GESTURE is exercised. The unit suites stub react-beautiful-dnd,
+    // because jsdom measures every element as zero and the library cannot lift a row it cannot
+    // measure. Only a real browser proves the handle is grabbable and the drop lands.
+    const { itemIds } = await seedTwoItemList(api.ctx, api.accessToken);
+    const [itemA] = itemIds;
+
+    await authedPage.goto("/focus");
+    await authedPage.getByTestId("focus-mode-toggle").click();
+    await expect(authedPage.getByTestId("focus-ultra").locator("h2")).toHaveText("Deep work");
+
+    // The add button REVEALS the field; the field then stays open, because a break checklist is
+    // typed in a burst. So it is clicked once and each name is a fill plus Enter.
+    await authedPage.getByTestId("focus-micro-task-add").click();
+    for (const name of ["First", "Second"]) {
+      await authedPage.getByTestId("focus-micro-task-input").fill(name);
+      await Promise.all([
+        authedPage.waitForResponse(
+          (r) => r.url().endsWith("/focus/micro-tasks") && r.request().method() === "POST" && r.ok(),
+        ),
+        authedPage.getByTestId("focus-micro-task-input").press("Enter"),
+      ]);
+    }
+
+    const handles = authedPage.locator('[data-testid^="focus-micro-task-handle-"]');
+    await expect(handles).toHaveCount(2);
+
+    await test.step("drag the second row above the first", async () => {
+      const from = await handles.nth(1).boundingBox();
+      const to = await handles.nth(0).boundingBox();
+      if (!from || !to) throw new Error("the drag handles have no box to grab");
+
+      // Hand-driven rather than `dragTo`: react-beautiful-dnd only starts a lift after the
+      // pointer has moved past its own threshold, so a single jump from A to B is ignored.
+      await authedPage.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
+      await authedPage.mouse.down();
+      await authedPage.mouse.move(from.x + from.width / 2, from.y + from.height / 2 - 10, {
+        steps: 5,
+      });
+      await Promise.all([
+        authedPage.waitForResponse(
+          (r) => r.url().includes("/focus/micro-tasks/reorder") && r.ok(),
+        ),
+        (async () => {
+          await authedPage.mouse.move(to.x + to.width / 2, to.y + to.height / 2 - 8, { steps: 10 });
+          await authedPage.mouse.up();
+        })(),
+      ]);
+    });
+
+    await test.step("the server holds the new order, and a reload shows it", async () => {
+      const stored = await fetchFocusMicroTasks(api.ctx, api.accessToken, itemA);
+      expect(stored.map((task) => task.name)).toEqual(["Second", "First"]);
+
+      await authedPage.reload();
+      await authedPage.getByTestId("focus-mode-toggle").click();
+      await expect(
+        authedPage.locator('[data-testid^="focus-micro-task-"]').getByText("Second"),
+      ).toBeVisible();
+      const rows = await authedPage
+        .locator('[data-testid^="focus-micro-task-handle-"]')
+        .evaluateAll((nodes) =>
+          nodes.map((node) => node.parentElement?.textContent?.trim() ?? ""),
+        );
+      expect(rows[0]).toContain("Second");
     });
   });
 
