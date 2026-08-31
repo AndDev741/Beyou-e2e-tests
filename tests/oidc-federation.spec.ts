@@ -18,6 +18,12 @@ import { apiUrl } from "../support/apiClient";
  * would complain. That is what the first test is here to notice.
  */
 test.describe("Federated sign-in wiring", () => {
+  // NOTE: when this suite first ran, this test passed for the wrong reason. SecurityFilter
+  // keeps a SECOND hand-written list of public paths, and the OIDC routes were missing from
+  // it, so the filter was answering 401 to everything under /auth/oidc/ — including the
+  // provider list, which is what went red. The shapes are now pinned on the backend side in
+  // SecurityFilterOidcPathsUnitTest as well, so a passing /link test here means the path is
+  // protected rather than merely unreachable.
   test("the link endpoint requires a session", async () => {
     const api = await playwrightRequest.newContext();
 
