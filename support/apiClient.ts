@@ -480,14 +480,93 @@ export interface GoalPayload {
   endDate: string;
   status: "NOT_STARTED" | "IN_PROGRESS" | "COMPLETED";
   term: "SHORT_TERM" | "MEDIUM_TERM" | "LONG_TERM";
+  /** Parent goal id for a sub-goal; omit or null for a top-level goal. */
+  parentId?: string | null;
 }
 
-interface GoalRow {
+export interface GoalRow {
   id: string;
   name: string;
   currentValue: number;
   complete: boolean;
   status: "NOT_STARTED" | "IN_PROGRESS" | "COMPLETED";
+  parentId: string | null;
+}
+
+/** The raw create call, for specs that assert a refusal (status + errorKey) rather than a row. */
+export async function postGoal(
+  ctx: APIRequestContext,
+  accessToken: string,
+  payload: GoalPayload,
+): Promise<APIResponse> {
+  return ctx.post(joinUrl("goal"), {
+    headers: { Authorization: `Bearer ${accessToken}` },
+    data: payload,
+  });
+}
+
+export async function fetchGoals(
+  ctx: APIRequestContext,
+  accessToken: string,
+): Promise<GoalRow[]> {
+  const list = await ctx.get(joinUrl("goal"), {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!list.ok()) {
+    throw new Error(`listGoals failed: ${list.status()}`);
+  }
+  return (await list.json()) as GoalRow[];
+}
+
+/**
+ * Re-parent through PUT /goal, the way the forms do. Every field is sent back as the row
+ * has it, so the only thing that changes is `parentId` (null detaches to the top level).
+ */
+export async function moveGoalUnder(
+  ctx: APIRequestContext,
+  accessToken: string,
+  goalId: string,
+  parentId: string | null,
+): Promise<APIResponse> {
+  const list = await ctx.get(joinUrl("goal"), {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  const rows = (await list.json()) as Array<Record<string, unknown>>;
+  const row = rows.find((g) => g.id === goalId);
+  if (!row) throw new Error(`moveGoalUnder: goal ${goalId} not found`);
+  return ctx.put(joinUrl("goal"), {
+    headers: { Authorization: `Bearer ${accessToken}` },
+    data: {
+      goalId,
+      name: row.name,
+      iconId: row.iconId,
+      description: row.description,
+      targetValue: row.targetValue,
+      unit: row.unit,
+      currentValue: row.currentValue,
+      complete: row.complete,
+      categoriesId: Object.keys((row.categories as Record<string, unknown>) ?? {}),
+      motivation: row.motivation,
+      startDate: row.startDate,
+      endDate: row.endDate,
+      status: row.status,
+      term: row.term,
+      parentId,
+    },
+  });
+}
+
+export async function deleteGoal(
+  ctx: APIRequestContext,
+  accessToken: string,
+  goalId: string,
+): Promise<void> {
+  const response = await ctx.delete(joinUrl(`goal/${goalId}`), {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!response.ok()) {
+    throw new Error(`deleteGoal failed: ${response.status()}`);
+  }
 }
 
 export async function createGoal(
