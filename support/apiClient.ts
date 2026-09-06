@@ -1229,3 +1229,76 @@ export async function fetchTasks(
   }
   return (await list.json()) as TaskRow[];
 }
+
+/** One day of the diary, as `GET /mood` returns it. */
+export interface MoodEntryRow {
+  id: string;
+  date: string;
+  mood: number;
+  note: string | null;
+  updatedAt: string;
+}
+
+/**
+ * Sets a day's level and leaves any note alone. The PATCH the widget uses.
+ *
+ * Returns the raw response so a test can assert on a refusal (a future date, a level outside
+ * the scale) rather than only on the happy path.
+ */
+export async function setMoodLevel(
+  ctx: APIRequestContext,
+  accessToken: string,
+  date: string,
+  mood: number,
+): Promise<APIResponse> {
+  return ctx.patch(joinUrl(`mood/${date}`), {
+    headers: { Authorization: `Bearer ${accessToken}` },
+    data: { mood },
+  });
+}
+
+/** Replaces a day's entry, note included. The PUT the diary page's Save button uses. */
+export async function saveMoodEntry(
+  ctx: APIRequestContext,
+  accessToken: string,
+  date: string,
+  entry: { mood: number; note: string | null },
+): Promise<APIResponse> {
+  return ctx.put(joinUrl(`mood/${date}`), {
+    headers: { Authorization: `Bearer ${accessToken}` },
+    data: entry,
+  });
+}
+
+export async function fetchMoodEntriesResponse(
+  ctx: APIRequestContext,
+  accessToken: string,
+  query: Record<string, string> = {},
+): Promise<APIResponse> {
+  return ctx.get(joinUrl("mood"), {
+    headers: { Authorization: `Bearer ${accessToken}` },
+    params: query,
+  });
+}
+
+export async function fetchMoodEntries(
+  ctx: APIRequestContext,
+  accessToken: string,
+  query: Record<string, string> = {},
+): Promise<MoodEntryRow[]> {
+  const response = await fetchMoodEntriesResponse(ctx, accessToken, query);
+  if (!response.ok()) {
+    throw new Error(`fetchMoodEntries failed: ${response.status()} — ${await response.text()}`);
+  }
+  return (await response.json()) as MoodEntryRow[];
+}
+
+export async function deleteMoodEntry(
+  ctx: APIRequestContext,
+  accessToken: string,
+  date: string,
+): Promise<APIResponse> {
+  return ctx.delete(joinUrl(`mood/${date}`), {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+}
