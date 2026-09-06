@@ -186,7 +186,13 @@ test.describe("Nested goals", () => {
     end.setDate(end.getDate() + 30);
     await form.getByLabel("End date").fill(iso(end));
     await form.getByTestId("goal-parent").selectOption(parent);
-    await form.getByRole("button", { name: "Save goal", exact: true }).click();
+    // Wait for the create to land before reading the API: without this the read raced
+    // the POST and lost on a slow runner (three retries in a row on the frontend's E2E
+    // job, while the same spec passed elsewhere).
+    await Promise.all([
+      authedPage.waitForResponse((r) => r.url().endsWith("/goal") && r.request().method() === "POST" && r.ok()),
+      form.getByRole("button", { name: "Save goal", exact: true }).click(),
+    ]);
 
     // The server got the parent: the card of the main goal now counts one sub-goal.
     const rows = await fetchGoals(api.ctx, api.accessToken);
