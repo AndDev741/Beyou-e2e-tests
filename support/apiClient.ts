@@ -1169,3 +1169,63 @@ export async function fetchFocusDay(
     microTasks: FocusMicroTask[];
   };
 }
+
+// ---------------------------------------------------------------------------
+// Tasks. Importance and difficulty are OPTIONAL (null on the wire, counted as 1
+// for XP); the forms hold "unset" as 0 and the api layer sends null.
+// ---------------------------------------------------------------------------
+
+export interface TaskPayload {
+  name: string;
+  description?: string;
+  iconId: string;
+  importance?: number | null;
+  difficulty?: number | null;
+  categoriesId?: string[];
+  oneTimeTask?: boolean;
+}
+
+export interface TaskRow {
+  id: string;
+  name: string;
+  importance: number | null;
+  difficulty: number | null;
+  oneTimeTask: boolean;
+}
+
+/** The raw create call, for specs that assert the status as much as the row. */
+export async function postTask(
+  ctx: APIRequestContext,
+  accessToken: string,
+  payload: TaskPayload,
+): Promise<APIResponse> {
+  return ctx.post(joinUrl("task"), {
+    headers: { Authorization: `Bearer ${accessToken}` },
+    data: payload,
+  });
+}
+
+/** `PUT /task` as the forms send it: every field, the id inside the body. */
+export async function putTask(
+  ctx: APIRequestContext,
+  accessToken: string,
+  payload: TaskPayload & { taskId: string },
+): Promise<APIResponse> {
+  return ctx.put(joinUrl("task"), {
+    headers: { Authorization: `Bearer ${accessToken}` },
+    data: payload,
+  });
+}
+
+export async function fetchTasks(
+  ctx: APIRequestContext,
+  accessToken: string,
+): Promise<TaskRow[]> {
+  const list = await ctx.get(joinUrl("task"), {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!list.ok()) {
+    throw new Error(`listTasks failed: ${list.status()}`);
+  }
+  return (await list.json()) as TaskRow[];
+}
