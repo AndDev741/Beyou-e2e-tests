@@ -254,6 +254,46 @@ test.describe("mood in the browser", () => {
     expect(errors).toEqual([]);
   });
 
+  /**
+   * Two rules the desktop layout added, asserted where the CSS is real. The journal collapses so
+   * the calendar can be read without scrolling past nine rows of textarea, and the choice has to
+   * outlive a reload or it is a gesture rather than a setting.
+   */
+  test("the journal collapses, and stays collapsed across a reload", async ({ authedPage, api }) => {
+    await saveMoodEntry(api.ctx, api.accessToken, todayIso(), { mood: 4, note: "kept" });
+
+    await authedPage.goto("/mood");
+    await expect(authedPage.getByTestId("mood-note")).toBeVisible();
+
+    await authedPage.getByTestId("mood-journal-toggle").click();
+    await expect(authedPage.getByTestId("mood-note")).toBeHidden();
+
+    await authedPage.reload();
+    await expect(authedPage.getByTestId("mood-journal-toggle")).toHaveAttribute(
+      "aria-expanded",
+      "false",
+    );
+    await expect(authedPage.getByTestId("mood-note")).toBeHidden();
+  });
+
+  test("the entry filter narrows the list to the days that felt that way", async ({
+    authedPage,
+    api,
+  }) => {
+    const today = todayIso();
+    await saveMoodEntry(api.ctx, api.accessToken, today, { mood: 5, note: "a great day" });
+    await saveMoodEntry(api.ctx, api.accessToken, yesterdayIso(), { mood: 1, note: "an awful day" });
+
+    await authedPage.goto("/mood");
+    await expect(authedPage.getByTestId("mood-recent").getByRole("listitem")).toHaveCount(2);
+
+    // Hiding "great" should leave exactly the awful day behind.
+    await authedPage.getByTestId("mood-filter-5").click();
+
+    await expect(authedPage.getByTestId("mood-recent").getByRole("listitem")).toHaveCount(1);
+    await expect(authedPage.getByText("an awful day")).toBeVisible();
+  });
+
   test("a future day cannot be selected in the month calendar", async ({ authedPage, api }) => {
     await saveMoodEntry(api.ctx, api.accessToken, todayIso(), { mood: 3, note: null });
 
