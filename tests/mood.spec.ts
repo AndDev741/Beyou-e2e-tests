@@ -294,6 +294,53 @@ test.describe("mood in the browser", () => {
     await expect(authedPage.getByText("an awful day")).toBeVisible();
   });
 
+  /**
+   * Un-pressing the chosen face leaves the day unrecorded, and the guard on it is the one thing
+   * worth asserting against a real backend: removing the entry removes the journal with it, so a
+   * day carrying writing has to ask first.
+   */
+  test("un-pressing the chosen face leaves a note-less day unrecorded", async ({
+    authedPage,
+    api,
+  }) => {
+    const today = todayIso();
+    await setMoodLevel(api.ctx, api.accessToken, today, 3);
+
+    await authedPage.goto("/mood");
+    const chosen = authedPage.getByTestId("mood-scale-3");
+    await expect(chosen).toHaveAttribute("aria-pressed", "true");
+
+    await chosen.click();
+
+    await expect(chosen).toHaveAttribute("aria-pressed", "false");
+    await expect
+      .poll(async () => (await fetchMoodEntries(api.ctx, api.accessToken, { from: today, to: today })).length)
+      .toBe(0);
+  });
+
+  test("un-pressing a day that carries writing asks before it goes", async ({
+    authedPage,
+    api,
+  }) => {
+    const today = todayIso();
+    const written = "I would rather not lose this.";
+    await saveMoodEntry(api.ctx, api.accessToken, today, { mood: 3, note: written });
+
+    await authedPage.goto("/mood");
+    await expect(authedPage.getByTestId("mood-note")).toHaveValue(written);
+
+    await authedPage.getByTestId("mood-scale-3").click();
+
+    // Asked, not done: the entry is still there while the dialog is open.
+    await expect(authedPage.getByTestId("mood-confirm-delete")).toBeVisible();
+    const [survived] = await fetchMoodEntries(api.ctx, api.accessToken, { from: today, to: today });
+    expect(survived.note).toBe(written);
+
+    await authedPage.getByRole("button", { name: "Cancel" }).click();
+    await expect(authedPage.getByTestId("mood-confirm-delete")).toBeHidden();
+    await expect(authedPage.getByTestId("mood-note")).toHaveValue(written);
+  });
+
   test("a future day cannot be selected in the month calendar", async ({ authedPage, api }) => {
     await saveMoodEntry(api.ctx, api.accessToken, todayIso(), { mood: 3, note: null });
 
