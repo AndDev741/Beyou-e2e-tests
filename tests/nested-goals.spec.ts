@@ -204,4 +204,42 @@ test.describe("Nested goals", () => {
     // Grouped by default: the sub-goal is not a card of its own on the page.
     await expect(authedPage.locator(`#goal-${child!.id}`)).toHaveCount(0);
   });
+
+  /**
+   * The sub-goal row's counter opens the same amount dialog the main goal has. What only
+   * the browser can show is that the dialog is fed the CHILD (its numbers, its id on the
+   * wire), not the card it sits in: a wiring slip there would move the parent's progress
+   * while the person believes they updated the sub-goal.
+   */
+  test("a sub-goal row on the card opens the amount dialog and moves the sub-goal, not the parent", async ({
+    authedPage,
+    api,
+  }) => {
+    const { id: parent } = await createGoal(api.ctx, api.accessToken, goalPayload("Learn to cook"));
+    const { id: child } = await createGoal(api.ctx, api.accessToken, goalPayload("Ten new recipes", parent));
+
+    await authedPage.goto("/goals");
+    const parentCard = authedPage.locator(`#goal-${parent}`);
+    await expect(parentCard).toBeVisible();
+    // The rows sit behind the fold at the foot of the card.
+    await parentCard.getByTestId(`subgoals-${parent}`).getByRole("button", { expanded: false }).click();
+    await parentCard.getByTestId(`goal-subgoal-progress-${child}`).click();
+
+    const dialog = authedPage.getByRole("dialog");
+    await expect(dialog.getByText("Ten new recipes")).toBeVisible();
+    await dialog.getByLabel("Amount").fill("4");
+    await Promise.all([
+      authedPage.waitForResponse(
+        (r) => r.url().endsWith("/goal/increase") && r.request().method() === "PUT" && r.ok(),
+      ),
+      dialog.getByRole("button", { name: "Add", exact: true }).click(),
+    ]);
+
+    const rows = await fetchGoals(api.ctx, api.accessToken);
+    expect(rows.find((g) => g.id === child)?.currentValue).toBe(4);
+    expect(rows.find((g) => g.id === parent)?.currentValue).toBe(0);
+    // The first move in a sub-goal starts the parent, and the card's chip follows.
+    expect(rows.find((g) => g.id === parent)?.status).toBe("IN_PROGRESS");
+    await expect(parentCard.getByTestId(`goal-subgoal-progress-${child}`)).toHaveText("4/10");
+  });
 });
