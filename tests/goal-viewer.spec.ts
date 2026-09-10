@@ -83,6 +83,62 @@ test.describe("Goal viewer", () => {
     });
   });
 
+  /**
+   * The grouped deck. What only the browser can show: the layout select drives the SAME
+   * deck the arrows walk, a sub-goal opens on top of its parent's slide without moving the
+   * position, the browser's own back returns to the parent, and the list layout puts the
+   * sub-goal back on the deck as a slide of its own.
+   */
+  test("grouped walks the main goals and opens a sub-goal in place; list gives it a slide", async ({
+    authedPage,
+    api,
+  }) => {
+    const { id: parent } = await createGoal(api.ctx, api.accessToken, payload("Write a novel", 90));
+    const { id: child } = await createGoal(api.ctx, api.accessToken, {
+      ...payload("Draft chapter one", 30),
+      parentId: parent,
+    });
+    const { id: other } = await createGoal(api.ctx, api.accessToken, payload("Learn to sail", 60));
+
+    await authedPage.goto(`/goals/view?goal=${parent}`);
+    const slide = authedPage.getByTestId("goal-viewer-slide");
+    const position = authedPage.getByTestId("goal-viewer-position");
+    await expect(slide).toHaveAttribute("data-goal-id", parent);
+
+    await test.step("grouped by default: two main goals, the sub-goal is not a slide", async () => {
+      await expect(authedPage.getByTestId("goal-viewer-layout")).toHaveValue("grouped");
+      await expect(position).toHaveAttribute("data-position", /\/2$/);
+    });
+
+    await test.step("the sub-goal opens in full, on the parent's position", async () => {
+      await authedPage.getByTestId(`goal-viewer-subgoal-${child}`).click();
+      await expect(slide).toHaveAttribute("data-goal-id", child);
+      await expect(slide.getByText("Draft chapter one")).toBeVisible();
+      await expect(authedPage.getByTestId("goal-viewer-increase")).toBeEnabled();
+      await expect(position).toHaveAttribute("data-position", /\/2$/);
+      await expect(authedPage).toHaveURL(new RegExp(`goal=${child}`));
+    });
+
+    await test.step("the parent control, and the browser's back, return to the main goal", async () => {
+      await authedPage.getByTestId("goal-viewer-parent").click();
+      await expect(slide).toHaveAttribute("data-goal-id", parent);
+      await authedPage.getByTestId(`goal-viewer-subgoal-${child}`).click();
+      await expect(slide).toHaveAttribute("data-goal-id", child);
+      await authedPage.goBack();
+      await expect(slide).toHaveAttribute("data-goal-id", parent);
+    });
+
+    await test.step("the list layout gives the sub-goal its own slide and survives a reload", async () => {
+      await authedPage.getByTestId("goal-viewer-layout").selectOption("list");
+      await expect(position).toHaveAttribute("data-position", /\/3$/);
+      await authedPage.goto(`/goals/view?goal=${child}`);
+      await expect(authedPage.getByTestId("goal-viewer-layout")).toHaveValue("list");
+      await expect(authedPage.getByTestId("goal-viewer-slide")).toHaveAttribute("data-goal-id", child);
+      await expect(authedPage.getByTestId("goal-viewer-position")).toHaveAttribute("data-position", /\/3$/);
+      void other;
+    });
+  });
+
   test("the goals page offers the way in, and a card opens on its own goal", async ({ authedPage, api }) => {
     const { id } = await createGoal(api.ctx, api.accessToken, payload("Plant a garden", 15));
 
