@@ -1302,3 +1302,71 @@ export async function deleteMoodEntry(
     headers: { Authorization: `Bearer ${accessToken}` },
   });
 }
+
+// ---------------------------------------------------------------------------
+// Daily Briefing
+// ---------------------------------------------------------------------------
+
+export interface BriefingOpenItemRow {
+  snapshotId: string;
+  snapshotCheckId: string;
+  date: string;
+  routineId: string | null;
+  routineName: string;
+  itemType: "HABIT" | "TASK";
+  itemName: string;
+  itemIconId: string | null;
+  sectionName: string;
+  xpIfCheckedNow: number;
+}
+
+export interface DailyBriefingRow {
+  date: string;
+  yesterday: {
+    date: string;
+    hadRoutine: boolean;
+    complete: boolean;
+    doneCount: number;
+    skippedCount: number;
+    xpEarned: number;
+    openItems: BriefingOpenItemRow[];
+    focusCycles: number;
+    moodLevel: number | null;
+  };
+  today: {
+    scheduledItemCount: number;
+    scheduledToday: boolean;
+    currentStreak: number;
+    bestStreak: number;
+    goalsApproaching: unknown[];
+    recovery: { oldestOpenDay: string; daysUntilExpiry: number } | null;
+  };
+  narrative: {
+    status: "PENDING" | "READY" | "UNAVAILABLE";
+    todayLines: string[];
+    yesterdayLines: string[];
+  };
+  seenAt: string | null;
+}
+
+export async function fetchDailyBriefing(
+  ctx: APIRequestContext,
+  accessToken: string,
+): Promise<DailyBriefingRow> {
+  const response = await ctx.get(joinUrl("daily-briefing"), {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!response.ok()) {
+    throw new Error(`fetchDailyBriefing failed: ${response.status()} — ${await response.text()}`);
+  }
+  return (await response.json()) as DailyBriefingRow;
+}
+
+export async function markDailyBriefingSeen(
+  ctx: APIRequestContext,
+  accessToken: string,
+): Promise<APIResponse> {
+  return ctx.post(joinUrl("daily-briefing/seen"), {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+}
