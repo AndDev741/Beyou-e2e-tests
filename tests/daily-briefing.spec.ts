@@ -169,8 +169,12 @@ test.describe("Daily Briefing", () => {
     expect(afterSecond.seenAt).toBe(afterFirst.seenAt);
   });
 
-  /** The second page is reachable by hand, without waiting out the auto-advance. */
-  test("the recap page is reachable from the pager", async ({ briefingPage, seedFullOnboarding }) => {
+  /**
+   * The tabs are the ONLY way to the second page. Nothing advances the panel on its own: the
+   * prose arrives from an LLM whenever it arrives, so a timed flip would move the reader off
+   * the page at exactly the moment it became worth reading.
+   */
+  test("the recap page is reachable from the tabs", async ({ briefingPage, seedFullOnboarding }) => {
     await seedFullOnboarding();
     await briefingPage.goto("/dashboard");
     await expect(briefingPage.getByTestId("briefing-today-page")).toBeVisible();
@@ -179,6 +183,59 @@ test.describe("Daily Briefing", () => {
 
     await expect(briefingPage.getByTestId("briefing-recap-page")).toBeVisible();
     await expect(briefingPage.getByTestId("briefing-today-page")).toHaveCount(0);
+  });
+
+  /**
+   * And it stays put when left alone.
+   *
+   * Deliberately a short, cheap wait rather than a faithful one: the removed behaviour fired
+   * at thirty seconds, and a spec that waited that long to prove a negative would cost the
+   * suite half a minute every run. Five seconds catches a timer reintroduced at any plausible
+   * length, and the component test carries the rest.
+   */
+  test("does not move to the recap on its own", async ({ briefingPage, seedFullOnboarding }) => {
+    await seedFullOnboarding();
+    await briefingPage.goto("/dashboard");
+    await expect(briefingPage.getByTestId("briefing-today-page")).toBeVisible();
+
+    await briefingPage.waitForTimeout(5_000);
+
+    await expect(briefingPage.getByTestId("briefing-today-page")).toBeVisible();
+    await expect(briefingPage.getByTestId("briefing-recap-page")).toHaveCount(0);
+  });
+
+  /**
+   * Getting it back after closing it by accident.
+   *
+   * The whole feature is built to stop the dialog appearing unasked, which left no way back in
+   * for the one mistake it is easy to make: dismissing a modal before reading it. The
+   * configuration screen asks for it, and the request has to beat the `seenAt` the dismissal
+   * just wrote — while leaving that column alone, because the day WAS acknowledged and
+   * clearing it would reopen the dialog on the user's other devices too.
+   */
+  test("can be reopened from the configuration screen after being closed", async ({
+    api,
+    briefingPage,
+    seedFullOnboarding,
+  }) => {
+    await seedFullOnboarding();
+    await briefingPage.goto("/dashboard");
+    await briefingPage.getByTestId("briefing-done").click();
+    await expect(briefingPage.getByTestId("daily-briefing")).toHaveCount(0);
+
+    await briefingPage.goto("/configuration");
+    await briefingPage.getByTestId("briefing-show-again").click();
+
+    await expect(briefingPage).toHaveURL(/\/dashboard/);
+    await expect(briefingPage.getByTestId("daily-briefing")).toBeVisible();
+
+    // Reopening is a request to look, not an un-acknowledgement: the column stays stamped.
+    expect((await fetchDailyBriefing(api.ctx, api.accessToken)).seenAt).not.toBeNull();
+
+    // And closing it again consumes the request, so a plain reload does not bring it back.
+    await briefingPage.getByTestId("briefing-done").click();
+    await briefingPage.reload();
+    await expect(briefingPage.getByTestId("daily-briefing")).toHaveCount(0);
   });
 
   /**
