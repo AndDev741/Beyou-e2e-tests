@@ -1,5 +1,6 @@
 import { test, expect } from "../fixtures/auth";
 import {
+  apiUrl,
   createCategory,
   createHabit,
   createRoutine,
@@ -158,6 +159,74 @@ test.describe("Focus Mode persistence", () => {
       const day = await fetchFocusDay(api.ctx, api.accessToken, todayIso());
       expect(day.microTasks).toHaveLength(2);
     });
+  });
+
+  test("one Enter is one POST, and the field is still there for the next task", async ({
+    authedPage,
+    api,
+  }) => {
+    // Prod, 2026-09-10: an add arrived as two identical POSTs a few ms apart. The field submits on
+    // Enter and again on blur, and the draft only clears on the answer. The certain source was the
+    // phone (Done fires both there; the jest suite pins it), but the web field has the same pair of
+    // handlers. The server now answers a repeat with the same row instead of a 409, so a row count
+    // alone cannot see a regression here; counting the requests can. The web field was also
+    // disabled while the request was out, which dropped its focus, so each add ended with a click
+    // back into the field: that is the half this test catches on the old code.
+    const { itemIds } = await seedTwoItemList(api.ctx, api.accessToken);
+    const [itemA] = itemIds;
+
+    await authedPage.goto("/focus");
+    await authedPage.getByTestId("focus-mode-toggle").click();
+    await expect(authedPage.getByTestId("focus-ultra").locator("h2")).toHaveText("Deep work");
+
+    const posts: string[] = [];
+    const conflicts: number[] = [];
+    authedPage.on("request", (r) => {
+      if (r.url().endsWith("/focus/micro-tasks") && r.method() === "POST") posts.push(r.postData() ?? "");
+    });
+    authedPage.on("response", (r) => {
+      if (r.url().endsWith("/focus/micro-tasks") && r.status() === 409) conflicts.push(r.status());
+    });
+
+    await authedPage.getByTestId("focus-micro-task-add").click();
+    const input = authedPage.getByTestId("focus-micro-task-input");
+    await input.fill("Water");
+    await input.press("Enter");
+    await expect(authedPage.getByTestId("focus-micro-tasks")).toContainText("Water");
+    // The duplicate went out while the first request was still on the wire, so by the time the
+    // row is on screen it has been sent if it is going to be.
+    expect(posts, "exactly one POST for one task").toHaveLength(1);
+    expect(conflicts).toHaveLength(0);
+
+    // The field kept its focus through the request (it was disabled before, which dropped it),
+    // so the next task can be typed straight away; leaving it now, with the draft cleared,
+    // closes it and posts nothing.
+    await expect(input).toBeFocused();
+    await authedPage.getByTestId("focus-ultra").locator("h2").click();
+    await expect(input).toBeHidden();
+    expect(posts).toHaveLength(1);
+    const rows = await fetchFocusMicroTasks(api.ctx, api.accessToken, itemA);
+    expect(rows.filter((row) => row.name === "Water")).toHaveLength(1);
+  });
+
+  test("the server absorbs a double submit: both requests get the same row", async ({ api }) => {
+    // The other half. Two tabs, the phone and the web, or a retry after a lost response still
+    // send the pair, and the second used to die on focus_micro_tasks_unique_per_item as a 409
+    // labelled DUPLICATE_CHECK. Fired together on purpose, not one after the other.
+    const { itemIds } = await seedTwoItemList(api.ctx, api.accessToken);
+    const [itemA] = itemIds;
+
+    const send = () =>
+      api.ctx.post(`${apiUrl()}/focus/micro-tasks`, {
+        headers: { Authorization: `Bearer ${api.accessToken}` },
+        data: { itemGroupId: itemA, name: "Breathe", pinned: false },
+      });
+    const [first, second] = await Promise.all([send(), send()]);
+
+    expect([first.status(), second.status()]).toEqual([201, 201]);
+    expect((await first.json()).id).toBe((await second.json()).id);
+    const rows = await fetchFocusMicroTasks(api.ctx, api.accessToken, itemA);
+    expect(rows.filter((row) => row.name === "Breathe")).toHaveLength(1);
   });
 
   test("dragging a micro-task rewrites the order, and it survives a reload", async ({
