@@ -491,6 +491,9 @@ export interface GoalRow {
   complete: boolean;
   status: "NOT_STARTED" | "IN_PROGRESS" | "COMPLETED";
   parentId: string | null;
+  /** When the goal was archived; null while active. Archiving leaves `status` alone. */
+  archivedAt?: string | null;
+  xpReward?: number;
 }
 
 /** The raw create call, for specs that assert a refusal (status + errorKey) rather than a row. */
@@ -553,6 +556,22 @@ export async function moveGoalUnder(
       term: row.term,
       parentId,
     },
+  });
+}
+
+/**
+ * `PUT /goal/archive`: archive (or restore) a goal and, with it, its sub-goals. Raw response,
+ * so a spec can read the changed rows or assert a refusal.
+ */
+export async function archiveGoal(
+  ctx: APIRequestContext,
+  accessToken: string,
+  goalId: string,
+  archived: boolean,
+): Promise<APIResponse> {
+  return ctx.put(joinUrl("goal/archive"), {
+    headers: { Authorization: `Bearer ${accessToken}` },
+    data: { goalId, archived },
   });
 }
 
