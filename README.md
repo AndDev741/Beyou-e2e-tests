@@ -33,9 +33,10 @@ Beyou-e2e-tests/
 | `tests/user-photo-removal.spec.ts` | `DELETE /user/photo` clears BOTH stored photos (the uploaded file and the Google avatar URL), is idempotent, and the export carries the uploaded JPEG as decodable base64. Also proves an empty `photo` edit does NOT remove an upload — the trap that made the feature look present |
 | `tests/daily-briefing.spec.ts` | The new-day dialog. Above all: dismissing it writes a SERVER column, so it stays closed across a reload and on every other device — a localStorage implementation passes every unit test in the repo and fails this. Also that an account with nothing scheduled is never interrupted, that the endpoint answers in full with the LLM switched off, that acknowledging keeps the FIRST timestamp, that the panel never moves pages on its own, and that the configuration screen can get the dialog back without un-acknowledging the day |
 | `tests/mood.spec.ts` | A tap on the dashboard mood widget does NOT delete the day's journal entry — the cross-repo contract between a component choosing `PATCH` and a controller refusing to touch the note. Plus one row per day however often you write it, future days refused, and one account never seeing another's diary |
+| `tests/form-survives-refresh.spec.ts` | Coming back to the tab refetches the page's list, and that must not wipe a half-filled create form: goal, sub-goal (the one that did), habit, task, category. The refresh is fired the way the hook hears it and the spec waits for the list's GET before reading the field |
 
 The table above lists the specs whose rule would be expensive to get wrong later, not the whole
-suite: `tests/` currently holds 37 spec files. Run `ls tests/` for the rest.
+suite: `tests/` currently holds 38 spec files. Run `ls tests/` for the rest.
 
 Everything except `auth.spec.ts`, `auth-persistence.spec.ts`, and
 `auth-failures.spec.ts` uses `fixtures/auth.ts` to set up an authenticated
