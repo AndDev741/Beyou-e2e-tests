@@ -35,9 +35,12 @@ Beyou-e2e-tests/
 | `tests/mood.spec.ts` | A tap on the dashboard mood widget does NOT delete the day's journal entry — the cross-repo contract between a component choosing `PATCH` and a controller refusing to touch the note. Plus one row per day however often you write it, future days refused, and one account never seeing another's diary |
 | `tests/form-survives-refresh.spec.ts` | Coming back to the tab refetches the page's list, and that must not wipe a half-filled create form: goal, sub-goal (the one that did), habit, task, category. The refresh is fired the way the hook hears it and the spec waits for the list's GET before reading the field |
 | `tests/goal-archive.spec.ts` | Archiving a goal takes its sub-goals under one stamp and restoring brings back exactly those (one archived on its own stays put); archiving moves no XP; nothing new goes under an archived goal but an existing sub-goal stays editable; and the page round trip: archive from the card, find it under Archived, restore |
+| `tests/notebook.spec.ts` | The study notebook through the UI: a topic gets a board, a node becomes a real child page that shows up in the tree, the editor's autosave reaches the server and survives a reload, and marking the only node done finishes the topic above it and pays both pages (+30 XP). Also the full-screen board adding a node, and the home listing topics with their progress |
+| `tests/notebook-rules.spec.ts` | API-only: another account's page answers `NOTEBOOK_PAGE_NOT_OWNED`; done, undone, done pays 15 XP once; the last node done finishes the page holding the board; a link that would put a page on its own board is refused with `NOTEBOOK_BOARD_CYCLE`; a link source pointing at `127.0.0.1:9091` is refused with `NOTEBOOK_SOURCE_URL_REFUSED` before any row exists; and pasted text is read in the background and is visible, as inherited, from the page below |
+| `tests/notebook-study.spec.ts` | A review session schedules every due card and pays at the end (+2 XP, nothing left due). The roadmap draft dialog creates a real topic whose drafted subtopics become a node's own board, and a study-room answer opens its citation and saves to the page. Only the AI routes are stubbed; every write goes to the real backend |
 
 The table above lists the specs whose rule would be expensive to get wrong later, not the whole
-suite: `tests/` currently holds 39 spec files. Run `ls tests/` for the rest.
+suite: `tests/` currently holds 42 spec files. Run `ls tests/` for the rest.
 
 Everything except `auth.spec.ts`, `auth-persistence.spec.ts`, and
 `auth-failures.spec.ts` uses `fixtures/auth.ts` to set up an authenticated

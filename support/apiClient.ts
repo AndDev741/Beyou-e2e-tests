@@ -1389,3 +1389,167 @@ export async function markDailyBriefingSeen(
     headers: { Authorization: `Bearer ${accessToken}` },
   });
 }
+
+// ---------------------------------------------------------------- study notebook
+
+export interface NotebookPageRow {
+  id: string;
+  kind: "TOPIC" | "PAGE";
+  topicId: string | null;
+  parentId: string | null;
+  title: string;
+  status: "TO_STUDY" | "STUDYING" | "DONE";
+  statusManual: boolean;
+  hasBoard: boolean;
+  progress: { done: number; total: number };
+  content: string | null;
+  cardsTotal: number;
+  cardsDue: number;
+}
+
+export interface BoardNodeRow {
+  id: string;
+  kind: "PAGE" | "SECTION";
+  pageId: string | null;
+  title: string;
+  status: "TO_STUDY" | "STUDYING" | "DONE";
+  linked: boolean;
+}
+
+const bearer = (accessToken: string) => ({ Authorization: `Bearer ${accessToken}` });
+
+async function okJson<T>(response: APIResponse, what: string): Promise<T> {
+  if (!response.ok()) {
+    throw new Error(`${what} failed: ${response.status()} ${await response.text()}`);
+  }
+  return (await response.json()) as T;
+}
+
+export async function createNotebookTopic(
+  ctx: APIRequestContext,
+  accessToken: string,
+  title: string,
+): Promise<NotebookPageRow> {
+  return okJson(await ctx.post(joinUrl("notebook/topics"), { headers: bearer(accessToken), data: { title } }),
+    "createNotebookTopic");
+}
+
+/** A new child page shown as a node on `boardPageId`'s board. */
+export async function addNotebookNode(
+  ctx: APIRequestContext,
+  accessToken: string,
+  boardPageId: string,
+  title: string,
+  x = 40,
+): Promise<BoardNodeRow> {
+  const change = await okJson<{ node: BoardNodeRow }>(
+    await ctx.post(joinUrl(`notebook/pages/${boardPageId}/board/nodes`), {
+      headers: bearer(accessToken),
+      data: { title, x, y: 80 },
+    }),
+    "addNotebookNode",
+  );
+  return change.node;
+}
+
+export async function linkNotebookNode(
+  ctx: APIRequestContext,
+  accessToken: string,
+  boardPageId: string,
+  linkPageId: string,
+): Promise<APIResponse> {
+  return ctx.post(joinUrl(`notebook/pages/${boardPageId}/board/nodes`), {
+    headers: bearer(accessToken),
+    data: { linkPageId, x: 40, y: 80 },
+  });
+}
+
+export async function setNotebookStatus(
+  ctx: APIRequestContext,
+  accessToken: string,
+  pageId: string,
+  status: "TO_STUDY" | "STUDYING" | "DONE" | "AUTO",
+): Promise<{ status: string; xpEarned: number; changed: { pageId: string; status: string }[] }> {
+  return okJson(await ctx.put(joinUrl(`notebook/pages/${pageId}/status`), {
+    headers: bearer(accessToken),
+    data: { status },
+  }), "setNotebookStatus");
+}
+
+export async function fetchNotebookPage(
+  ctx: APIRequestContext,
+  accessToken: string,
+  pageId: string,
+): Promise<APIResponse> {
+  return ctx.get(joinUrl(`notebook/pages/${pageId}`), { headers: bearer(accessToken) });
+}
+
+export async function saveNotebookContent(
+  ctx: APIRequestContext,
+  accessToken: string,
+  pageId: string,
+  paragraphs: string[],
+): Promise<void> {
+  const content = JSON.stringify(paragraphs.map((text) => ({
+    type: "paragraph",
+    content: [{ type: "text", text, styles: {} }],
+  })));
+  await okJson(await ctx.put(joinUrl(`notebook/pages/${pageId}/content`), {
+    headers: bearer(accessToken),
+    data: { content },
+  }), "saveNotebookContent");
+}
+
+export async function createNotebookCard(
+  ctx: APIRequestContext,
+  accessToken: string,
+  pageId: string,
+  front: string,
+  back: string,
+): Promise<{ id: string }> {
+  return okJson(await ctx.post(joinUrl(`notebook/pages/${pageId}/cards`), {
+    headers: bearer(accessToken),
+    data: { front, back },
+  }), "createNotebookCard");
+}
+
+export async function fetchDueCards(
+  ctx: APIRequestContext,
+  accessToken: string,
+): Promise<{ total: number; streak: number }> {
+  return okJson(await ctx.get(joinUrl("notebook/cards/due"), { headers: bearer(accessToken) }), "fetchDueCards");
+}
+
+export async function addNotebookTextSource(
+  ctx: APIRequestContext,
+  accessToken: string,
+  pageId: string,
+  title: string,
+  text: string,
+): Promise<APIResponse> {
+  return ctx.post(joinUrl(`notebook/pages/${pageId}/sources/text`), {
+    headers: bearer(accessToken),
+    data: { title, text },
+  });
+}
+
+export async function addNotebookLinkSource(
+  ctx: APIRequestContext,
+  accessToken: string,
+  pageId: string,
+  url: string,
+): Promise<APIResponse> {
+  return ctx.post(joinUrl(`notebook/pages/${pageId}/sources/link`), {
+    headers: bearer(accessToken),
+    data: { url },
+  });
+}
+
+export async function fetchNotebookSources(
+  ctx: APIRequestContext,
+  accessToken: string,
+  pageId: string,
+): Promise<{ id: string; status: string; inherited: boolean; charCount: number | null }[]> {
+  return okJson(await ctx.get(joinUrl(`notebook/pages/${pageId}/sources`), { headers: bearer(accessToken) }),
+    "fetchNotebookSources");
+}
