@@ -34,8 +34,10 @@ test.describe("study notebook: review and AI", () => {
   });
 
   test("a drafted roadmap is reviewed in the dialog and created for real", async ({ authedPage: page }) => {
-    await page.route("**/notebook/ai/roadmap-draft", (route) =>
-      route.fulfill({
+    // Held for a moment, like a real model, so the waiting state has time to be seen.
+    await page.route("**/notebook/ai/roadmap-draft", async (route) => {
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+      await route.fulfill({
         json: {
           totalHours: 36,
           nodes: [
@@ -47,8 +49,8 @@ test.describe("study notebook: review and AI", () => {
               optional: true, existingPageId: null, existingTopicTitle: null, existingProgress: null },
           ],
         },
-      }),
-    );
+      });
+    });
 
     await page.goto("/notebook");
     await page.getByTestId("notebook-create-ai").click();
@@ -59,7 +61,11 @@ test.describe("study notebook: review and AI", () => {
     expect(await dialog.evaluate((el) => el.scrollWidth - el.clientWidth)).toBe(0);
     await page.getByTestId("ai-topic-what").fill("Fundamentals of Computer Science");
     await page.getByTestId("ai-topic-draft").click();
+    // While the model works the panel says what it is drafting and counts the time.
+    await expect(page.getByTestId("ai-draft-waiting")).toContainText("Fundamentals of Computer Science");
+    await expect(page.getByTestId("ai-waiting-elapsed")).toHaveText(/^0:0\d$/);
     await expect(page.getByTestId("ai-draft-node")).toHaveCount(3);
+    await expect(page.getByTestId("ai-draft-waiting")).toHaveCount(0);
     // The optional node starts left out, so two are created.
     await page.getByTestId("ai-topic-create").click();
 
