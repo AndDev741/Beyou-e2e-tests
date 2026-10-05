@@ -4,6 +4,8 @@ import {
   addNotebookNode,
   addNotebookTextSource,
   createNotebookTopic,
+  fetchNotebookDraft,
+  fetchNotebookDrafts,
   fetchNotebookPage,
   fetchNotebookSources,
   linkNotebookNode,
@@ -11,6 +13,7 @@ import {
   newApiContext,
   registerUser,
   setNotebookStatus,
+  startNotebookDraft,
 } from "../support/apiClient";
 import { makeUser } from "../support/testData";
 
@@ -35,6 +38,26 @@ test.describe("study notebook rules", () => {
 
     expect(response.status()).toBe(400);
     expect((await response.json()).errorKey).toBe("NOTEBOOK_PAGE_NOT_OWNED");
+    await ctx.dispose();
+  });
+
+  /** A draft is stored before the model answers, and it is as private as a page. */
+  test("a roadmap draft is stored at once and somebody else's answers NOTEBOOK_DRAFT_NOT_OWNED", async ({ api }) => {
+    const started = await startNotebookDraft(api.ctx, api.accessToken, "Private plans");
+    expect(started.status()).toBe(202);
+    const draft = await started.json();
+    expect(draft.status).toBe("DRAFTING");
+    expect((await fetchNotebookDrafts(api.ctx, api.accessToken)).map((d) => d.id)).toEqual([draft.id]);
+
+    const stranger = makeUser();
+    const ctx = await newApiContext();
+    await registerUser(ctx, stranger);
+    const { accessToken } = await loginUser(ctx, { email: stranger.email, password: stranger.password });
+    const response = await fetchNotebookDraft(ctx, accessToken, draft.id);
+
+    expect(response.status()).toBe(400);
+    expect((await response.json()).errorKey).toBe("NOTEBOOK_DRAFT_NOT_OWNED");
+    expect(await fetchNotebookDrafts(ctx, accessToken)).toEqual([]);
     await ctx.dispose();
   });
 

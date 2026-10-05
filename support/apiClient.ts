@@ -1476,6 +1476,45 @@ export async function setNotebookStatus(
   }), "setNotebookStatus");
 }
 
+export interface NotebookDraftRow {
+  id: string;
+  title: string;
+  status: "DRAFTING" | "READY" | "FAILED";
+}
+
+/** "New topic with AI": stores a draft and answers 202 at once, DRAFTING. */
+export async function startNotebookDraft(
+  ctx: APIRequestContext,
+  accessToken: string,
+  title: string,
+): Promise<APIResponse> {
+  return ctx.post(joinUrl("notebook/ai/drafts"), { headers: bearer(accessToken), data: { title } });
+}
+
+export async function fetchNotebookDraft(
+  ctx: APIRequestContext,
+  accessToken: string,
+  draftId: string,
+): Promise<APIResponse> {
+  return ctx.get(joinUrl(`notebook/drafts/${draftId}`), { headers: bearer(accessToken) });
+}
+
+export async function fetchNotebookDrafts(ctx: APIRequestContext, accessToken: string): Promise<NotebookDraftRow[]> {
+  return okJson(await ctx.get(joinUrl("notebook/drafts"), { headers: bearer(accessToken) }), "fetchNotebookDrafts");
+}
+
+/** A board's nodes with where they sit, to compare layouts. */
+export async function fetchNotebookBoard(
+  ctx: APIRequestContext,
+  accessToken: string,
+  pageId: string,
+): Promise<{ nodes: (BoardNodeRow & { x: number; y: number })[] }> {
+  return okJson(
+    await ctx.get(joinUrl(`notebook/pages/${pageId}/board`), { headers: bearer(accessToken) }),
+    "fetchNotebookBoard",
+  );
+}
+
 export async function fetchNotebookPage(
   ctx: APIRequestContext,
   accessToken: string,
