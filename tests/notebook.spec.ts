@@ -78,6 +78,29 @@ test.describe("study notebook", () => {
     await expect(page).toHaveURL(new RegExp(`/notebook/${topic.id}$`));
   });
 
+  /**
+   * Reported in local testing: after deleting a page the app moved to its parent, and the delete
+   * dialog was still open, now naming the parent. One more click on Delete would have taken the
+   * parent and everything under it.
+   */
+  test("deleting a page lands on its parent with no delete dialog left open", async ({ authedPage: page, api }) => {
+    const topic = await createNotebookTopic(api.ctx, api.accessToken, "Spanish C1");
+    const node = await addNotebookNode(api.ctx, api.accessToken, topic.id, "Baseline and immersion");
+
+    await page.goto(`/notebook/${node.pageId}`);
+    await expect(page.getByTestId("page-title")).toHaveValue("Baseline and immersion");
+    await page.getByRole("button", { name: /more actions|mais ações/i }).first().click();
+    await page.getByTestId("page-delete").click();
+    await expect(page.getByRole("dialog")).toContainText("Baseline and immersion");
+    await page.getByTestId("page-delete-confirm").click();
+
+    await expect(page).toHaveURL(new RegExp(`/notebook/${topic.id}$`));
+    await expect(page.getByTestId("page-title")).toHaveValue("Spanish C1");
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+    expect((await fetchNotebookPage(api.ctx, api.accessToken, topic.id)).status()).toBe(200);
+    expect((await fetchNotebookPage(api.ctx, api.accessToken, node.pageId!)).status()).toBe(400);
+  });
+
   /** 85vw of content inside a padded panel is wider than the panel on a phone. */
   test("the new-topic dialog fits a phone screen without scrolling sideways", async ({ authedPage: page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
