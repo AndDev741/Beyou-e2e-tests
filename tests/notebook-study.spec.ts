@@ -52,6 +52,11 @@ test.describe("study notebook: review and AI", () => {
 
     await page.goto("/notebook");
     await page.getByTestId("notebook-create-ai").click();
+    // The dialog's content once set its own width, 2px wider than the bordered panel at
+    // 1080px, and the panel showed a horizontal scrollbar for those 2px.
+    const dialog = page.getByRole("dialog");
+    await expect(dialog).toBeVisible();
+    expect(await dialog.evaluate((el) => el.scrollWidth - el.clientWidth)).toBe(0);
     await page.getByTestId("ai-topic-what").fill("Fundamentals of Computer Science");
     await page.getByTestId("ai-topic-draft").click();
     await expect(page.getByTestId("ai-draft-node")).toHaveCount(3);

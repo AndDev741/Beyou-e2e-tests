@@ -78,6 +78,17 @@ test.describe("study notebook", () => {
     await expect(page).toHaveURL(new RegExp(`/notebook/${topic.id}$`));
   });
 
+  /** 85vw of content inside a padded panel is wider than the panel on a phone. */
+  test("the new-topic dialog fits a phone screen without scrolling sideways", async ({ authedPage: page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto("/notebook");
+    await page.getByTestId("notebook-new-topic").click();
+
+    const dialog = page.getByRole("dialog");
+    await expect(page.getByTestId("new-topic-title")).toBeVisible();
+    expect(await dialog.evaluate((el) => el.scrollWidth - el.clientWidth)).toBe(0);
+  });
+
   test("the home lists topics with their progress", async ({ authedPage: page, api }) => {
     const topic = await createNotebookTopic(api.ctx, api.accessToken, "Fundamentals of CS");
     await addNotebookNode(api.ctx, api.accessToken, topic.id, "Discrete Math", 40);
