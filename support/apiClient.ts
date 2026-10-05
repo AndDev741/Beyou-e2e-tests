@@ -1503,6 +1503,18 @@ export async function fetchNotebookDrafts(ctx: APIRequestContext, accessToken: s
   return okJson(await ctx.get(joinUrl("notebook/drafts"), { headers: bearer(accessToken) }), "fetchNotebookDrafts");
 }
 
+/** The study room as the server keeps it: setup, sources and the rest. */
+export async function fetchStudyRoom(
+  ctx: APIRequestContext,
+  accessToken: string,
+  pageId: string,
+): Promise<{
+  setup: { goal: string | null; scope: string; configuredAt: string | null };
+  sources: { kind: string; url: string | null }[];
+}> {
+  return okJson(await ctx.get(joinUrl(`notebook/pages/${pageId}/study`), { headers: bearer(accessToken) }), "fetchStudyRoom");
+}
+
 /** A board's nodes with where they sit, to compare layouts. */
 export async function fetchNotebookBoard(
   ctx: APIRequestContext,

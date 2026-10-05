@@ -7,6 +7,7 @@ import {
   fetchNotebookBoard,
   fetchNotebookDrafts,
   fetchNotebookPage,
+  fetchStudyRoom,
   saveNotebookContent,
 } from "../support/apiClient";
 
@@ -134,6 +135,66 @@ test.describe("study notebook: review and AI", () => {
     expect(await fetchNotebookDrafts(api.ctx, api.accessToken)).toEqual([]);
   });
 
+  /**
+   * Before the first question the room asks for a goal, which notes to read and what to quote.
+   * The web search is stubbed (the suite has no search key); the sources it "found" are added
+   * through the real backend, and the setup is stored on the page.
+   */
+  test("the study room opens on its setup, finds sources, and keeps the setup", async ({ authedPage: page, api }) => {
+    const topic = await createNotebookTopic(api.ctx, api.accessToken, "Spanish C1");
+    const grammar = await addNotebookNode(api.ctx, api.accessToken, topic.id, "Subjunctive");
+    await saveNotebookContent(api.ctx, api.accessToken, grammar.pageId!, ["Ojalá takes the subjunctive."]);
+
+    // The suite runs without a search key; the room is told discovery is on, and the search answers.
+    await page.route("**/notebook/pages/*/study", async (route) => {
+      if (route.request().method() !== "GET") return route.fallback();
+      const room = await (await route.fetch()).json();
+      await route.fulfill({ json: { ...room, discovery: true } });
+    });
+    await page.route("**/notebook/ai/pages/*/discover-sources", (route) =>
+      route.fulfill({
+        json: {
+          provider: "TAVILY",
+          skipped: 0,
+          sources: [
+            { title: "Example Domain", url: "https://example.com/", domain: "example.com", summary: "A page to read." },
+            { title: "Example domains", url: "https://www.iana.org/help/example-domains", domain: "iana.org", summary: "Why they exist." },
+          ],
+        },
+      }),
+    );
+
+    await page.goto(`/notebook/${grammar.pageId}/study`);
+    await expect(page.getByTestId("study-setup")).toBeVisible();
+    await expect(page.getByTestId("study-chat-input")).toHaveCount(0);
+
+    await page.getByTestId("setup-goal").fill("Pass the C1 oral exam");
+    await page.getByTestId("setup-scope-SUBTREE").click();
+    await page.getByTestId("setup-find-sources").click();
+    await page.getByTestId("discover-description").fill("subjunctive with exercises");
+    await page.getByTestId("discover-find").click();
+    await expect(page.getByTestId("discover-result")).toHaveCount(2);
+    await page.getByTestId("discover-add").click();
+    await expect(page.getByTestId("discover-added")).toBeVisible();
+    // The panel beside the setup shows what was added.
+    await expect(page.getByTestId("study-source-row")).toHaveCount(2);
+
+    await page.getByTestId("setup-start").click();
+    await expect(page.getByTestId("study-setup-bar")).toContainText("Pass the C1 oral exam");
+    await expect(page.getByTestId("study-chat-input")).toBeVisible();
+
+    const room = await fetchStudyRoom(api.ctx, api.accessToken, grammar.pageId!);
+    expect(room.setup).toMatchObject({ goal: "Pass the C1 oral exam", scope: "SUBTREE" });
+    expect(room.setup.configuredAt).not.toBeNull();
+    expect(room.sources.map((s) => s.url).sort()).toEqual(["https://example.com/", "https://www.iana.org/help/example-domains"]);
+
+    // Set up once, the room opens on the chat, and Edit brings the setup back.
+    await page.reload();
+    await expect(page.getByTestId("study-setup-bar")).toBeVisible();
+    await page.getByTestId("study-setup-edit").click();
+    await expect(page.getByTestId("setup-goal")).toHaveValue("Pass the C1 oral exam");
+  });
+
   test("a study-room answer shows its citation and saves to the page", async ({ authedPage: page, api }) => {
     const topic = await createNotebookTopic(api.ctx, api.accessToken, "Data Structures");
     const trees = await addNotebookNode(api.ctx, api.accessToken, topic.id, "Trees");
@@ -157,6 +218,8 @@ test.describe("study notebook: review and AI", () => {
 
     await page.goto(`/notebook/${trees.pageId}/study`);
     await expect(page.getByTestId("study-room")).toBeVisible();
+    // A room that was never set up opens on its setup; the defaults are fine here.
+    await page.getByTestId("setup-start").click();
     await page.getByTestId("study-chat-input").fill("Why the successor?");
     await page.getByTestId("study-chat-send").click();
 

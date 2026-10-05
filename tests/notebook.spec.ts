@@ -101,6 +101,22 @@ test.describe("study notebook", () => {
     expect((await fetchNotebookPage(api.ctx, api.accessToken, node.pageId!)).status()).toBe(400);
   });
 
+  /** The header's icon opens the app's icon picker; the pick is stored and can be cleared. */
+  test("a page gets an icon from its header, and can go back to the default", async ({ authedPage: page, api }) => {
+    const topic = await createNotebookTopic(api.ctx, api.accessToken, "Spanish C1");
+
+    await page.goto(`/notebook/${topic.id}`);
+    await page.getByTestId("page-icon").click();
+    const picker = page.getByTestId("page-icon-picker");
+    await picker.getByRole("button", { name: /^Icon: /i }).first().click();
+    await expect(picker).toHaveCount(0);
+    await expect.poll(async () => (await (await fetchNotebookPage(api.ctx, api.accessToken, topic.id)).json()).icon).not.toBeNull();
+
+    await page.getByTestId("page-icon").click();
+    await page.getByTestId("page-icon-clear").click();
+    await expect.poll(async () => (await (await fetchNotebookPage(api.ctx, api.accessToken, topic.id)).json()).icon).toBeNull();
+  });
+
   /** 85vw of content inside a padded panel is wider than the panel on a phone. */
   test("the new-topic dialog fits a phone screen without scrolling sideways", async ({ authedPage: page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
