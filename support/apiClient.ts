@@ -1551,6 +1551,45 @@ export async function saveNotebookContent(
   }), "saveNotebookContent");
 }
 
+/** A page's document from raw blocks: a topic made through the API has none, so no board block either. */
+export async function saveNotebookBlocks(
+  ctx: APIRequestContext,
+  accessToken: string,
+  pageId: string,
+  blocks: object[],
+): Promise<void> {
+  await okJson(await ctx.put(joinUrl(`notebook/pages/${pageId}/content`), {
+    headers: bearer(accessToken),
+    data: { content: JSON.stringify(blocks) },
+  }), "saveNotebookBlocks");
+}
+
+/** A new title for a page, as the assistant's editStudyNode renames a node's page. */
+export async function renameNotebookPage(
+  ctx: APIRequestContext,
+  accessToken: string,
+  pageId: string,
+  title: string,
+): Promise<void> {
+  await okJson(await ctx.patch(joinUrl(`notebook/pages/${pageId}`), {
+    headers: bearer(accessToken),
+    data: { title },
+  }), "renameNotebookPage");
+}
+
+/** Markdown at the end of a page, as the assistant's addStudyNotes writes it. */
+export async function appendNotebookNotes(
+  ctx: APIRequestContext,
+  accessToken: string,
+  pageId: string,
+  markdown: string,
+): Promise<void> {
+  await okJson(await ctx.post(joinUrl(`notebook/pages/${pageId}/append`), {
+    headers: bearer(accessToken),
+    data: { markdown },
+  }), "appendNotebookNotes");
+}
+
 export async function createNotebookCard(
   ctx: APIRequestContext,
   accessToken: string,
