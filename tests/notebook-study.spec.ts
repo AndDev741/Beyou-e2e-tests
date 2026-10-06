@@ -195,6 +195,38 @@ test.describe("study notebook: review and AI", () => {
     await expect(page.getByTestId("setup-goal")).toHaveValue("Pass the C1 oral exam");
   });
 
+  /** Asked for in testing: wider side panels, or thin ones to focus on the conversation. */
+  test("the study room's side panels resize, fold, and stay that way", async ({ authedPage: page, api }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    const topic = await createNotebookTopic(api.ctx, api.accessToken, "Spanish C1");
+    const grammar = await addNotebookNode(api.ctx, api.accessToken, topic.id, "Subjunctive");
+    await page.goto(`/notebook/${grammar.pageId}/study`);
+    await page.getByTestId("setup-start").click();
+    await expect(page.getByTestId("study-chat-input")).toBeVisible();
+
+    const sources = page.getByTestId("study-col-left");
+    const before = (await sources.boundingBox())!.width;
+    const bar = (await page.getByTestId("study-resize-left").boundingBox())!;
+    await page.mouse.move(bar.x + bar.width / 2, bar.y + 120);
+    await page.mouse.down();
+    await page.mouse.move(bar.x + bar.width / 2 + 120, bar.y + 120, { steps: 6 });
+    await page.mouse.up();
+    const widened = (await sources.boundingBox())!.width;
+    expect(Math.abs(widened - (before + 120))).toBeLessThan(6);
+
+    await page.getByTestId("study-collapse-right").click();
+    await expect(page.getByTestId("study-rail-right")).toBeVisible();
+    await expect(page.getByTestId("study-collapse-right")).toBeHidden();
+
+    // The layout belongs to this browser and comes back after a reload.
+    await page.reload();
+    await expect(page.getByTestId("study-rail-right")).toBeVisible();
+    expect(Math.abs((await sources.boundingBox())!.width - widened)).toBeLessThan(2);
+
+    await page.getByTestId("study-rail-right").click();
+    await expect(page.getByTestId("study-collapse-right")).toBeVisible();
+  });
+
   test("a study-room answer shows its citation and saves to the page", async ({ authedPage: page, api }) => {
     const topic = await createNotebookTopic(api.ctx, api.accessToken, "Data Structures");
     const trees = await addNotebookNode(api.ctx, api.accessToken, topic.id, "Trees");
