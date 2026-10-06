@@ -117,6 +117,23 @@ test.describe("study notebook", () => {
     await expect.poll(async () => (await (await fetchNotebookPage(api.ctx, api.accessToken, topic.id)).json()).icon).toBeNull();
   });
 
+  /**
+   * Reported in testing: a notebook page ended about 160px above the bottom of the screen. The
+   * page reserves its own bottom space on desktop and turns the shell's spacer off; every other
+   * page keeps it, for the floating assistant button.
+   */
+  test("on desktop a notebook page drops the shell's bottom spacer, other pages keep it", async ({ authedPage: page, api }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    const topic = await createNotebookTopic(api.ctx, api.accessToken, "Spanish C1");
+
+    await page.goto(`/notebook/${topic.id}`);
+    await expect(page.getByTestId("page-title")).toHaveValue("Spanish C1");
+    await expect(page.getByTestId("bottom-nav-spacer")).toBeHidden();
+
+    await page.goto("/dashboard");
+    await expect(page.getByTestId("bottom-nav-spacer")).toBeVisible();
+  });
+
   /** 85vw of content inside a padded panel is wider than the panel on a phone. */
   test("the new-topic dialog fits a phone screen without scrolling sideways", async ({ authedPage: page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
