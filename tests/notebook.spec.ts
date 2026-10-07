@@ -135,6 +135,77 @@ test.describe("study notebook", () => {
   });
 
   /** 85vw of content inside a padded panel is wider than the panel on a phone. */
+  // Reported from prod: on a page that started empty, the "Add cards" starter stayed on screen while
+  // the person wrote, and clicking it replaced everything written with one cards block.
+  test("a page's starters go the moment something is written, so they never replace notes", async ({ authedPage: page, api }) => {
+    const topic = await createNotebookTopic(api.ctx, api.accessToken, "Algorithms");
+    const node = await addNotebookNode(api.ctx, api.accessToken, topic.id, "Graphs");
+
+    await page.goto(`/notebook/${node.pageId}`);
+    await expect(page.getByTestId("page-starters")).toBeVisible();
+
+    await page.locator('[data-testid="notebook-editor"] [contenteditable="true"]').first().click();
+    await page.keyboard.type("Dijkstra does not take negative weights.");
+    await expect(page.getByTestId("page-starters")).toHaveCount(0);
+    await expect(page.getByTestId("save-state")).toHaveText("Saved", { timeout: 10_000 });
+
+    const stored = await (await fetchNotebookPage(api.ctx, api.accessToken, node.pageId)).json();
+    expect(stored.content).toContain("Dijkstra does not take negative weights.");
+  });
+
+  test("Add cards puts the deck on the page, and a card's answer opens on a click", async ({ authedPage: page, api }) => {
+    const topic = await createNotebookTopic(api.ctx, api.accessToken, "Networks");
+    const node = await addNotebookNode(api.ctx, api.accessToken, topic.id, "TCP");
+
+    await page.goto(`/notebook/${node.pageId}`);
+    await page.getByTestId("start-cards").click();
+    await expect(page.getByTestId("flashcards-block")).toBeVisible();
+    await expect(page.getByTestId("page-starters")).toHaveCount(0);
+    // The cursor waits under the deck.
+    await page.keyboard.type("Three-way handshake.");
+    await expect(page.getByTestId("save-state")).toHaveText("Saved", { timeout: 10_000 });
+
+    const stored = await (await fetchNotebookPage(api.ctx, api.accessToken, node.pageId)).json();
+    expect(stored.content).toContain('"flashcards"');
+    expect(stored.content).toContain("Three-way handshake.");
+
+    await page.getByTestId("cards-write").click();
+    await page.getByTestId("card-front").fill("What opens a TCP connection?");
+    await page.getByTestId("card-back").fill("SYN, SYN-ACK, ACK.");
+    await page.getByTestId("card-save").click();
+    await expect(page.getByTestId("card-row")).toContainText("What opens a TCP connection?");
+    await expect(page.getByTestId("card-answer")).toHaveCount(0);
+    await page.getByTestId("card-question").click();
+    await expect(page.getByTestId("card-answer")).toHaveText("SYN, SYN-ACK, ACK.");
+  });
+
+  test("a code block's language is picked from a list and saved, and an unknown one falls back to text", async ({ authedPage: page, api }) => {
+    const topic = await createNotebookTopic(api.ctx, api.accessToken, "Languages");
+    const node = await addNotebookNode(api.ctx, api.accessToken, topic.id, "Snippets");
+    await page.goto(`/notebook/${node.pageId}`);
+    const editor = page.locator('[data-testid="notebook-editor"] [contenteditable="true"]').first();
+
+    await editor.click();
+    await page.keyboard.type("```py ");
+    const picker = page.locator('[data-content-type="codeBlock"] select').first();
+    await expect(picker).toHaveValue("python");
+    await page.keyboard.type("print(1)");
+    await picker.selectOption("java");
+    await expect(page.getByTestId("save-state")).toHaveText("Saved", { timeout: 10_000 });
+
+    const stored = await (await fetchNotebookPage(api.ctx, api.accessToken, node.pageId)).json();
+    expect(stored.content).toContain('"language":"java"');
+
+    // A name the list does not have used to take the editor down; it now becomes plain text.
+    // Back into the code (the picker had the focus), then out of the block onto a new line.
+    await page.getByTestId("notebook-editor").getByText("print(1)").click();
+    await page.keyboard.press("End");
+    await page.keyboard.press("Shift+Enter");
+    await page.keyboard.type("```cobolish ");
+    await expect(page.locator('[data-content-type="codeBlock"] select').nth(1)).toHaveValue("text");
+    await expect(page.getByTestId("notebook-editor")).toContainText("print(1)");
+  });
+
   test("the new-topic dialog fits a phone screen without scrolling sideways", async ({ authedPage: page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto("/notebook");
