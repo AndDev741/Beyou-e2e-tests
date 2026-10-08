@@ -58,6 +58,7 @@ const BRIEFING_SEEN_STUB = {
     bestStreak: 0,
     goalsApproaching: [],
     recovery: null,
+    goalsAhead: [],
   },
   narrative: { status: "UNAVAILABLE", todayLines: [], yesterdayLines: [] },
   seenAt: "1970-01-01T00:00:00Z",

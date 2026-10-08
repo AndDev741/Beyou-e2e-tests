@@ -1,9 +1,16 @@
 import { test, expect } from "../fixtures/auth";
 import {
+  addDaysIso,
   apiUrl,
+  createCategory,
+  createGoal,
+  fetchBriefingNarrative,
   fetchDailyBriefing,
+  fetchMoodEntries,
   markDailyBriefingSeen,
   newApiContext,
+  saveMoodEntry,
+  todayIso,
 } from "../support/apiClient";
 
 /**
@@ -35,6 +42,10 @@ import {
  * the database, and the clients render their own translated copy where the generated lines
  * would be. A spec that waited on a live model would be slow and would depend on an upstream
  * free tier being awake.
+ *
+ * Narration being off also leaves every row PENDING with nothing running, which is exactly the
+ * state that used to keep the skeleton up for the whole session. So the poll that ends it can
+ * be exercised here against the real endpoints, with no stub at all.
  */
 
 test.describe("Daily Briefing", () => {
@@ -236,6 +247,147 @@ test.describe("Daily Briefing", () => {
     await briefingPage.getByTestId("briefing-done").click();
     await briefingPage.reload();
     await expect(briefingPage.getByTestId("daily-briefing")).toHaveCount(0);
+  });
+
+  /**
+   * The bug behind the AI insights nobody ever saw. GET /daily-briefing stops waiting on the
+   * model at eight seconds and answers PENDING, the call carries on and stores itself, and
+   * before the poll nothing ever asked again: every narration in production landed READY in
+   * its row while the screen showed a skeleton until the dialog was closed.
+   *
+   * With narration off the row stays PENDING with no call behind it, so the poll's answer is
+   * UNAVAILABLE and the skeleton has to give way to the fallback line. Real endpoints, no stub.
+   */
+  test("the written summary never leaves a skeleton up", async ({ briefingPage, seedFullOnboarding }) => {
+    await seedFullOnboarding();
+    const polled = briefingPage.waitForRequest(
+      (request) => request.method() === "GET" && request.url().includes("/daily-briefing/narrative"),
+    );
+
+    await briefingPage.goto("/dashboard");
+    await expect(briefingPage.getByTestId("daily-briefing")).toBeVisible();
+    await polled;
+
+    await expect(briefingPage.getByTestId("briefing-narrative-unavailable")).toBeVisible({
+      timeout: 15_000,
+    });
+    await expect(briefingPage.getByTestId("briefing-narrative-pending")).toHaveCount(0);
+  });
+
+  /**
+   * And when the prose does land after the deadline, it reaches the screen. The poll's answer
+   * is stubbed because the e2e profile has no model; the first GET is the real one, PENDING.
+   */
+  test("prose that lands after the first request reaches the screen", async ({
+    briefingPage,
+    seedFullOnboarding,
+  }) => {
+    await seedFullOnboarding();
+    const line = "Drink water held every day this week; today keeps it going.";
+    await briefingPage.route("**/daily-briefing/narrative", (route) =>
+      route.fulfill({ json: { status: "READY", todayLines: [line], yesterdayLines: [] } }),
+    );
+
+    await briefingPage.goto("/dashboard");
+
+    await expect(briefingPage.getByTestId("briefing-narrative")).toContainText(line, { timeout: 15_000 });
+  });
+
+  /**
+   * The poll route itself: read only, honest about a call that is not running, and harmless
+   * to the row. If it wrote UNAVAILABLE, the next full GET could never start the call again.
+   */
+  test("the narrative poll reports a call that is not running and changes nothing", async ({
+    api,
+    seedFullOnboarding,
+  }) => {
+    // Before any briefing exists there is nothing to wait for.
+    expect((await fetchBriefingNarrative(api.ctx, api.accessToken)).status).toBe("UNAVAILABLE");
+
+    await seedFullOnboarding();
+    expect((await fetchDailyBriefing(api.ctx, api.accessToken)).narrative.status).toBe("PENDING");
+
+    expect((await fetchBriefingNarrative(api.ctx, api.accessToken)).status).toBe("UNAVAILABLE");
+    expect((await fetchDailyBriefing(api.ctx, api.accessToken)).narrative.status).toBe("PENDING");
+  });
+
+  /**
+   * The future half. A goal three months out never appeared before, because only goals ending
+   * within two weeks did; now the open goals closest to their date always come, with the pace
+   * the server decided. goalsApproaching keeps its horizon for the app builds already installed.
+   */
+  test("a goal months away earns the dialog and shows its pace", async ({ api, briefingPage }) => {
+    const { id: categoryId } = await createCategory(api.ctx, api.accessToken, {
+      name: "Running",
+      icon: "icon:fa-person-running",
+      description: "Seeded for E2E",
+      experience: "BEGINNER",
+    });
+    const today = todayIso();
+    await createGoal(api.ctx, api.accessToken, {
+      name: "Run a half marathon",
+      iconId: "icon:fa-person-running",
+      targetValue: 21,
+      unit: "km",
+      currentValue: 0,
+      categoriesId: [categoryId],
+      startDate: addDaysIso(today, -10),
+      endDate: addDaysIso(today, 90),
+      status: "NOT_STARTED",
+      term: "LONG_TERM",
+    });
+
+    const briefing = await fetchDailyBriefing(api.ctx, api.accessToken);
+    expect(briefing.today.goalsApproaching).toEqual([]);
+    expect(briefing.today.goalsAhead.map((goal) => goal.name)).toEqual(["Run a half marathon"]);
+    const goal = briefing.today.goalsAhead[0];
+    // Ten days into a hundred-day line at zero progress: behind, with a daily amount to ask for.
+    expect(goal.pace).toBe("BEHIND");
+    expect(goal.requiredPerDay).toBeGreaterThan(0);
+    expect(goal.remainingValue).toBe(21);
+
+    await briefingPage.goto("/dashboard");
+    await expect(briefingPage.getByTestId("daily-briefing")).toBeVisible();
+    await expect(briefingPage.getByTestId("briefing-goal")).toContainText("Run a half marathon");
+    await expect(briefingPage.getByTestId("briefing-goal-pace")).toBeVisible();
+    await expect(briefingPage.getByTestId("briefing-goal-expected")).toBeVisible();
+  });
+
+  /**
+   * The journal in the dialog, and the privacy rule around it. The client reads yesterday's
+   * entry from the mood API; the briefing payload never carries the text, which is what keeps
+   * it away from the model that writes the summary. And today's mood can be marked from the
+   * dialog, landing on the day the server means.
+   */
+  test("shows yesterday's journal, records today's mood, and never sends the journal in the briefing", async ({
+    api,
+    briefingPage,
+    seedFullOnboarding,
+  }) => {
+    await seedFullOnboarding();
+    const { date } = await fetchDailyBriefing(api.ctx, api.accessToken);
+    const yesterday = addDaysIso(date, -1);
+    const journal = `Long day, good talk with my sister (${Date.now()})`;
+    expect((await saveMoodEntry(api.ctx, api.accessToken, yesterday, { mood: 4, note: journal })).ok())
+      .toBeTruthy();
+
+    const briefing = await fetchDailyBriefing(api.ctx, api.accessToken);
+    expect(briefing.yesterday.moodLevel).toBe(4);
+    expect(JSON.stringify(briefing)).not.toContain(journal);
+
+    await briefingPage.goto("/dashboard");
+    await expect(briefingPage.getByTestId("daily-briefing")).toBeVisible();
+
+    const patched = briefingPage.waitForResponse(
+      (response) => response.request().method() === "PATCH" && response.url().endsWith(`/mood/${date}`),
+    );
+    await briefingPage.getByTestId("briefing-mood-face-5").click();
+    expect((await patched).ok()).toBeTruthy();
+    const todayEntries = await fetchMoodEntries(api.ctx, api.accessToken, { from: date, to: date });
+    expect(todayEntries.map((entry) => entry.mood)).toEqual([5]);
+
+    await briefingPage.getByTestId("briefing-bullet-yesterday").click();
+    await expect(briefingPage.getByTestId("briefing-journal")).toHaveText(journal);
   });
 
   /**
