@@ -1339,6 +1339,29 @@ export interface BriefingOpenItemRow {
   xpIfCheckedNow: number;
 }
 
+/** One goal in the briefing's goal lists, pace included. */
+export interface BriefingGoalRow {
+  id: string;
+  name: string;
+  iconId: string | null;
+  currentValue: number;
+  targetValue: number;
+  unit: string;
+  endDate: string;
+  daysRemaining: number;
+  percentComplete: number;
+  remainingValue: number;
+  requiredPerDay: number | null;
+  expectedPercent: number;
+  pace: "ON_TRACK" | "BEHIND" | "OVERDUE" | "REACHED";
+}
+
+export interface BriefingNarrativeRow {
+  status: "PENDING" | "READY" | "UNAVAILABLE";
+  todayLines: string[];
+  yesterdayLines: string[];
+}
+
 export interface DailyBriefingRow {
   date: string;
   yesterday: {
@@ -1357,14 +1380,13 @@ export interface DailyBriefingRow {
     scheduledToday: boolean;
     currentStreak: number;
     bestStreak: number;
-    goalsApproaching: unknown[];
+    /** Ending within two weeks. Kept for the app builds already installed. */
+    goalsApproaching: BriefingGoalRow[];
     recovery: { oldestOpenDay: string; daysUntilExpiry: number } | null;
+    /** The open goals closest to their date on either side, no horizon. What clients render. */
+    goalsAhead: BriefingGoalRow[];
   };
-  narrative: {
-    status: "PENDING" | "READY" | "UNAVAILABLE";
-    todayLines: string[];
-    yesterdayLines: string[];
-  };
+  narrative: BriefingNarrativeRow;
   seenAt: string | null;
 }
 
@@ -1379,6 +1401,20 @@ export async function fetchDailyBriefing(
     throw new Error(`fetchDailyBriefing failed: ${response.status()} — ${await response.text()}`);
   }
   return (await response.json()) as DailyBriefingRow;
+}
+
+/** The prose alone: the read the dialog polls after GET /daily-briefing answers PENDING. */
+export async function fetchBriefingNarrative(
+  ctx: APIRequestContext,
+  accessToken: string,
+): Promise<BriefingNarrativeRow> {
+  const response = await ctx.get(joinUrl("daily-briefing/narrative"), {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!response.ok()) {
+    throw new Error(`fetchBriefingNarrative failed: ${response.status()} — ${await response.text()}`);
+  }
+  return (await response.json()) as BriefingNarrativeRow;
 }
 
 export async function markDailyBriefingSeen(
