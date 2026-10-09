@@ -83,11 +83,13 @@ test.describe("the assistant and an open notebook page", () => {
       await page.getByTestId("notebook-editor").getByText("Enlace").click();
       await page.keyboard.press("End");
       await page.keyboard.type(" Revisar amanhã.");
-      await expect(page.getByTestId("save-state")).toHaveText("Saved", { timeout: 10_000 });
 
+      // "Saved" can already be on screen: the merge brought the page level with the server. What
+      // counts is what the server holds once the typing is saved.
+      await expect.poll(async () => (await (await fetchNotebookPage(api.ctx, api.accessToken, topic.id)).json()).content,
+        { timeout: 15_000 }).toContain("Revisar amanhã.");
       const stored = await (await fetchNotebookPage(api.ctx, api.accessToken, topic.id)).json();
       expect(stored.content).toContain("Camadas do modelo OSI");
-      expect(stored.content).toContain("Revisar amanhã.");
     });
   });
 
