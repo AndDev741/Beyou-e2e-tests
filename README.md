@@ -28,7 +28,8 @@ Beyou-e2e-tests/
 | `tests/habits.spec.ts` | Create → edit → delete a habit through the UI |
 | `tests/goals.spec.ts` | API-only: `/goal/increase` awards no XP, `/goal/complete` does — locks in the asymmetry. Also that increase/decrease move by the amount they are given and that progress is what starts a goal |
 | `tests/routine-checkin.spec.ts` | Check a habit on today's routine → XP and constance go up; checkbox state survives a reload |
-| `tests/tutorial.spec.ts` | Skip, walk the 5-step intro, **and** walk the whole onboarding journey end to end (intro → dashboard → categories → habits → routines → config) |
+| `tests/tutorial.spec.ts` | Skip, walk the seven intro cards (titles in `support/tutorial.ts`, shared with `ai-onboarding.spec.ts`), **and** walk the whole onboarding journey end to end (intro → dashboard → categories → habits → routines → config) |
+| `tests/language.spec.ts` | An account starts in the language its owner reads: register and the UI signup store `pt` from a Portuguese browser, `pt-BR` is normalised, an unshipped language is dropped, an older account with none takes the screen's on its next boot, and a saved language is never replaced by the browser's |
 | `tests/user-photo-access.spec.ts` | API-only: `GET /user/photo/{id}` serves the bytes to a signed URL and answers 403 to an unsigned, forged, truncated, re-pointed or re-dated one. Locks in the fix for the endpoint that used to answer anybody who could guess a user id |
 | `tests/user-photo-removal.spec.ts` | `DELETE /user/photo` clears BOTH stored photos (the uploaded file and the Google avatar URL), is idempotent, and the export carries the uploaded JPEG as decodable base64. Also proves an empty `photo` edit does NOT remove an upload — the trap that made the feature look present |
 | `tests/data-export.spec.ts` | API-only: the download beside the delete button carries what shipped after it was last made whole. The goal tree keeps its parent ids, a LIST routine says LIST (it said `DiaryRoutine` for every routine) and keeps its order, focus cycles and micro-tasks have a section, the notebook board and the card ids its reviews point at are there, the day's briefing is listed, and `notIncluded` names what stays out. Read through the real HTTP layer, which the backend's own completeness test never touches |
@@ -45,7 +46,7 @@ Beyou-e2e-tests/
 | `tests/notebook-focus.spec.ts` | "Focus 25" never replaces a running pomodoro: with a cycle started on one page, the button on another page is disabled and says why, and the first page still owns the cycle. Web used to let the second click throw the first cycle away |
 
 The table above lists the specs whose rule would be expensive to get wrong later, not the whole
-suite: `tests/` currently holds 47 spec files. Run `ls tests/` for the rest.
+suite: `tests/` currently holds 48 spec files. Run `ls tests/` for the rest.
 
 Everything except `auth.spec.ts`, `auth-persistence.spec.ts`, and
 `auth-failures.spec.ts` uses `fixtures/auth.ts` to set up an authenticated

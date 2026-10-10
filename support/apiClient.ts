@@ -21,6 +21,12 @@ export interface RegisterPayload {
    * is also a real case (an older client), and the backend must still register.
    */
   timezone?: string;
+  /**
+   * Optional language the client's screen is showing (`en`, `pt`, or a regional tag
+   * such as `pt-BR`). Both real clients send it so a new account's AI text and mail
+   * start in the right language; omitting it is the older-client case.
+   */
+  language?: string;
 }
 
 export interface LoginPayload {
@@ -428,6 +434,7 @@ export async function fetchProfile(
   photo: string | null;
   timezone: string;
   timezoneSource: "DEFAULT" | "DETECTED" | "EXPLICIT";
+  languageInUse: string | null;
   [key: string]: unknown;
 }> {
   const response = await ctx.get(joinUrl("user"), {

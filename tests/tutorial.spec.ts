@@ -1,5 +1,6 @@
 import { Page } from "@playwright/test";
 import { test, expect } from "../fixtures/auth";
+import { walkIntroCards } from "../support/tutorial";
 
 /**
  * Onboarding tutorial coverage.
@@ -8,7 +9,8 @@ import { test, expect } from "../fixtures/auth";
  * state for a newly registered user, which is when these flows fire.
  *
  * Tutorial structure:
- *   - OnboardingTutorial.tsx: a 5-step modal ending in "Get Started"
+ *   - OnboardingTutorial.tsx: a 7-card modal ending in "Get Started" (the
+ *     card titles live in support/tutorial.ts)
  *   - SpotlightTutorial.tsx: per-page tooltip + cutout. Some steps have
  *     `action: "click"` so clicking the highlighted element advances the
  *     spotlight (and usually navigates).
@@ -38,16 +40,8 @@ test.describe("Onboarding tutorial", () => {
   }) => {
     await freshAuthedPage.goto("/dashboard");
 
-    const nextButton = freshAuthedPage.getByRole("button", { name: "Next" });
-    const getStarted = freshAuthedPage.getByRole("button", {
-      name: "Get Started",
-    });
-
-    await expect(nextButton).toBeVisible();
-    for (let i = 0; i < 4; i++) {
-      await nextButton.click();
-    }
-    await getStarted.click();
+    // Every card in order, the diary and the notebook included, then the fork.
+    await walkIntroCards(freshAuthedPage);
 
     // The fork screen offers "Personalized setup" vs "Hands-on tour".
     // Pick the manual path to reach the dashboard spotlight.
@@ -88,13 +82,7 @@ test.describe("Onboarding tutorial", () => {
 
     await test.step("intro modal → click through to Get Started", async () => {
       await page.goto("/dashboard");
-      const nextButton = page.getByRole("button", { name: "Next" });
-      const getStarted = page.getByRole("button", { name: "Get Started" });
-      await expect(nextButton).toBeVisible();
-      for (let i = 0; i < 4; i++) {
-        await nextButton.click();
-      }
-      await getStarted.click();
+      await walkIntroCards(page);
       // Choose the manual path through the fork screen.
       await page.getByRole("button", { name: "Hands-on tour" }).click();
     });

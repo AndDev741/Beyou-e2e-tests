@@ -1,6 +1,7 @@
 import { test, expect } from "../fixtures/auth";
 import { fixtureFor } from "../fixtures/onboardingSuggestions";
 import { fetchHabits } from "../support/apiClient";
+import { walkIntroCards } from "../support/tutorial";
 
 /**
  * AI personalized onboarding coverage.
@@ -36,10 +37,7 @@ test.describe("AI personalized onboarding", () => {
 
     await test.step("intro cards -> fork -> choose personalized", async () => {
       await page.goto("/dashboard");
-      for (let i = 0; i < 4; i++) {
-        await page.getByRole("button", { name: "Next" }).click();
-      }
-      await page.getByRole("button", { name: "Get Started" }).click();
+      await walkIntroCards(page);
       await expect(page.getByText("How do you want to start?")).toBeVisible();
       // The fork cards carry aria-labels with the path titles.
       await page.getByRole("button", { name: "Personalized setup" }).click();
@@ -155,10 +153,7 @@ test.describe("AI personalized onboarding", () => {
 
     await test.step("reach the habits & tasks step", async () => {
       await page.goto("/dashboard");
-      for (let i = 0; i < 4; i++) {
-        await page.getByRole("button", { name: "Next" }).click();
-      }
-      await page.getByRole("button", { name: "Get Started" }).click();
+      await walkIntroCards(page);
       await page.getByRole("button", { name: "Personalized setup" }).click();
       await page.getByRole("button", { name: "Health", exact: true }).click();
       await page.getByRole("button", { name: "Career", exact: true }).click();
@@ -235,10 +230,7 @@ test.describe("AI personalized onboarding", () => {
     );
 
     await page.goto("/dashboard");
-    for (let i = 0; i < 4; i++) {
-      await page.getByRole("button", { name: "Next" }).click();
-    }
-    await page.getByRole("button", { name: "Get Started" }).click();
+    await walkIntroCards(page);
     await page.getByRole("button", { name: "Personalized setup" }).click();
 
     // The categories step itself is static; the failure surfaces after
