@@ -1152,6 +1152,22 @@ export async function fetchFocusMicroTasks(
   return (await response.json()) as FocusMicroTask[];
 }
 
+/** `POST /focus/micro-tasks`: one step under a routine item, the way the focus screen adds it. */
+export async function addFocusMicroTask(
+  ctx: APIRequestContext,
+  accessToken: string,
+  payload: { itemGroupId: string; name: string; pinned?: boolean },
+): Promise<FocusMicroTask> {
+  const response = await ctx.post(joinUrl("focus/micro-tasks"), {
+    headers: { Authorization: `Bearer ${accessToken}` },
+    data: { pinned: false, ...payload },
+  });
+  if (!response.ok()) {
+    throw new Error(`addFocusMicroTask failed: ${response.status()} ${await response.text()}`);
+  }
+  return (await response.json()) as FocusMicroTask;
+}
+
 /** `POST /focus/cycles`. Returns the raw response so a spec can assert on a refusal too. */
 export async function recordFocusCycle(
   ctx: APIRequestContext,
