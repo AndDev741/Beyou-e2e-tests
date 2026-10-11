@@ -265,4 +265,114 @@ test.describe("study notebook: review and AI", () => {
       .poll(async () => (await (await fetchNotebookPage(api.ctx, api.accessToken, trees.pageId!)).json()).content as string)
       .toContain("It is the smallest key larger than the one removed.");
   });
+
+  /** Reported in prod: Shift+Enter sent a half-written question instead of starting a new line. */
+  test("the question box takes Shift+Enter as a new line and Enter as send", async ({ authedPage: page, api }) => {
+    const topic = await createNotebookTopic(api.ctx, api.accessToken, "Algorithms");
+    const sorting = await addNotebookNode(api.ctx, api.accessToken, topic.id, "Sorting");
+    await saveNotebookContent(api.ctx, api.accessToken, sorting.pageId!, ["Merge sort splits the list in half."]);
+
+    const asked: string[] = [];
+    await page.route("**/notebook/ai/pages/*/chat", async (route) => {
+      const question = (route.request().postDataJSON() as { message: string }).message;
+      asked.push(question);
+      await route.fulfill({
+        json: {
+          question: { id: "q1", role: "USER", content: question, citations: [], createdAt: "2026-10-11T10:00:00Z" },
+          answer: { id: "a1", role: "ASSISTANT", content: "Both halves are sorted first.", citations: [], createdAt: "2026-10-11T10:00:01Z" },
+        },
+      });
+    });
+
+    await page.goto(`/notebook/${sorting.pageId}/study`);
+    await page.getByTestId("setup-start").click();
+    const box = page.getByTestId("study-chat-input");
+    await box.click();
+    await page.keyboard.type("Two things:");
+    await page.keyboard.press("Shift+Enter");
+    await page.keyboard.type("why split in half?");
+    await expect(box).toHaveValue("Two things:\nwhy split in half?");
+    expect(asked).toHaveLength(0);
+
+    await page.keyboard.press("Enter");
+    await expect(page.getByTestId("study-answer").last()).toContainText("Both halves are sorted first.");
+    expect(asked).toEqual(["Two things:\nwhy split in half?"]);
+    await expect(box).toHaveValue("");
+  });
+
+  /**
+   * Notes beside the chat. The two write the same document: what the person types there and an
+   * answer saved from the chat must both end up stored, which is only true when the saved answer
+   * goes into the open editor instead of being written over by its next autosave.
+   */
+  test("notes open beside the chat, take a saved answer, and keep the view", async ({ authedPage: page, api }) => {
+    test.setTimeout(60_000);
+    await page.setViewportSize({ width: 1440, height: 900 });
+    const topic = await createNotebookTopic(api.ctx, api.accessToken, "Networks");
+    const tcp = await addNotebookNode(api.ctx, api.accessToken, topic.id, "TCP");
+    await saveNotebookContent(api.ctx, api.accessToken, tcp.pageId!, ["Three-way handshake."]);
+
+    await page.route("**/notebook/ai/pages/*/chat", (route) =>
+      route.fulfill({
+        json: {
+          question: { id: "q1", role: "USER", content: "Why three steps?", citations: [], createdAt: "2026-10-11T10:00:00Z" },
+          answer: { id: "a1", role: "ASSISTANT", content: "Each side has to confirm the other heard it.", citations: [], createdAt: "2026-10-11T10:00:01Z" },
+        },
+      }),
+    );
+
+    // A save the server refuses as stale means the editor never heard about the append and had to
+    // catch up after the fact. The append has to reach the open editor directly instead.
+    const refusedSaves: string[] = [];
+    page.on("response", (response) => {
+      if (response.request().method() === "PUT" && response.url().endsWith("/content") && response.status() === 400) {
+        refusedSaves.push(response.url());
+      }
+    });
+
+    await page.goto(`/notebook/${tcp.pageId}/study`);
+    await page.getByTestId("setup-start").click();
+    await page.getByTestId("study-view-split").click();
+    const notes = page.getByTestId("study-notes");
+    await expect(notes.getByTestId("notebook-editor")).toContainText("Three-way handshake.");
+    await expect(page.getByTestId("study-chat-input")).toBeVisible();
+    // The room's own side panels step aside.
+    await expect(page.getByTestId("study-col-left")).toBeHidden();
+    await expect(page.getByTestId("study-col-right")).toBeHidden();
+
+    await notes.getByText("Three-way handshake.", { exact: true }).click();
+    await page.keyboard.press("End");
+    await page.keyboard.type(" SYN, SYN-ACK, ACK.");
+    await expect(page.getByTestId("study-notes-save-state")).toHaveText(/Saved|Salvo/);
+
+    await page.getByTestId("study-chat-input").fill("Why three steps?");
+    await page.getByTestId("study-chat-send").click();
+    await page.getByTestId("study-answer").last().getByTestId("study-save-to-page").click();
+    // The answer shows up in the open notes without a reload.
+    await expect(notes.getByTestId("notebook-editor")).toContainText("Each side has to confirm the other heard it.");
+
+    // A keystroke after the append saves again; neither side may be lost.
+    await notes.getByText("Three-way handshake. SYN, SYN-ACK, ACK.", { exact: true }).click();
+    await page.keyboard.press("End");
+    await page.keyboard.type("!");
+    await expect
+      .poll(async () => (await (await fetchNotebookPage(api.ctx, api.accessToken, tcp.pageId!)).json()).content as string, { timeout: 15_000 })
+      .toContain("SYN-ACK, ACK.!");
+    const stored = (await (await fetchNotebookPage(api.ctx, api.accessToken, tcp.pageId!)).json()).content as string;
+    expect(stored).toContain("Each side has to confirm the other heard it.");
+    expect(refusedSaves).toEqual([]);
+
+    // Notes alone hide the chat but keep the conversation for when it comes back.
+    await page.getByTestId("study-view-notes").click();
+    await expect(page.getByTestId("study-chat-input")).toBeHidden();
+    await page.getByTestId("study-view-room").click();
+    await expect(page.getByTestId("study-answer").last()).toContainText("Each side has to confirm");
+    await expect(page.getByTestId("study-notes")).toHaveCount(0);
+
+    // The view is a per-browser choice and survives a reload.
+    await page.getByTestId("study-view-split").click();
+    await page.reload();
+    await expect(page.getByTestId("study-view-split")).toHaveAttribute("aria-pressed", "true");
+    await expect(page.getByTestId("study-notes")).toBeVisible();
+  });
 });
