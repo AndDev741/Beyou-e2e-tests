@@ -1834,3 +1834,149 @@ export async function fetchStudyHistory(ctx: APIRequestContext, accessToken: str
   }>(await ctx.get(joinUrl(`notebook/cycles/${cycleId}/history?from=${from}&to=${to}`), { headers: bearer(accessToken) }),
     "fetchStudyHistory");
 }
+
+// ---------------------------------------------------------------------------
+// Calendar: dated tasks, reminders and the per-day overview.
+// ---------------------------------------------------------------------------
+
+export interface CalendarTaskRow {
+  id: string;
+  title: string;
+  note: string | null;
+  date: string;
+  time: string | null;
+  advanceMinutes: number;
+  completed: boolean;
+  completedAt: string | null;
+  xpAwarded: number;
+  notifyAt: string;
+}
+
+export interface CalendarDayRow {
+  date: string;
+  tasks: CalendarTaskRow[];
+  routines: Array<{
+    routineId: string;
+    name: string;
+    source: "SNAPSHOT" | "SCHEDULE";
+    totalItems: number | null;
+    checkedItems: number | null;
+    completed: boolean;
+  }>;
+  goals: Array<{ goalId: string; name: string; complete: boolean }>;
+  mood: { level: number; hasNote: boolean } | null;
+}
+
+export interface CalendarOverviewRow {
+  from: string;
+  to: string;
+  today: string;
+  days: CalendarDayRow[];
+}
+
+export interface CalendarTaskPayload {
+  title: string;
+  date: string;
+  time?: string | null;
+  advanceMinutes?: number;
+  note?: string | null;
+}
+
+export async function createCalendarTask(
+  ctx: APIRequestContext,
+  accessToken: string,
+  payload: CalendarTaskPayload,
+): Promise<CalendarTaskRow> {
+  return okJson(
+    await ctx.post(joinUrl("calendar/tasks"), { headers: bearer(accessToken), data: payload }),
+    "createCalendarTask",
+  );
+}
+
+/** Raw response, so a test can assert on a refusal (not owned, invalid body). */
+export async function editCalendarTask(
+  ctx: APIRequestContext,
+  accessToken: string,
+  id: string,
+  payload: CalendarTaskPayload,
+): Promise<APIResponse> {
+  return ctx.put(joinUrl(`calendar/tasks/${id}`), { headers: bearer(accessToken), data: payload });
+}
+
+export async function deleteCalendarTask(
+  ctx: APIRequestContext,
+  accessToken: string,
+  id: string,
+): Promise<APIResponse> {
+  return ctx.delete(joinUrl(`calendar/tasks/${id}`), { headers: bearer(accessToken) });
+}
+
+export async function toggleCalendarTask(
+  ctx: APIRequestContext,
+  accessToken: string,
+  id: string,
+): Promise<APIResponse> {
+  return ctx.put(joinUrl(`calendar/tasks/${id}/complete`), { headers: bearer(accessToken) });
+}
+
+export async function acknowledgeCalendarTask(
+  ctx: APIRequestContext,
+  accessToken: string,
+  id: string,
+): Promise<APIResponse> {
+  return ctx.post(joinUrl(`calendar/tasks/${id}/ack`), { headers: bearer(accessToken) });
+}
+
+export async function fetchUpcomingCalendarTasks(
+  ctx: APIRequestContext,
+  accessToken: string,
+): Promise<CalendarTaskRow[]> {
+  return okJson(
+    await ctx.get(joinUrl("calendar/tasks/upcoming"), { headers: bearer(accessToken) }),
+    "fetchUpcomingCalendarTasks",
+  );
+}
+
+export async function fetchCalendarOverviewResponse(
+  ctx: APIRequestContext,
+  accessToken: string,
+  range: { from: string; to: string },
+): Promise<APIResponse> {
+  return ctx.get(joinUrl("calendar"), { headers: bearer(accessToken), params: range });
+}
+
+export async function fetchCalendarOverview(
+  ctx: APIRequestContext,
+  accessToken: string,
+  range: { from: string; to: string },
+): Promise<CalendarOverviewRow> {
+  return okJson(await fetchCalendarOverviewResponse(ctx, accessToken, range), "fetchCalendarOverview");
+}
+
+export interface NotificationPreferencesRow {
+  engagementEmail: boolean;
+  reminderEmail: boolean;
+  reminderWeb: boolean;
+  reminderDefaultTime: string;
+}
+
+export async function fetchNotificationPreferences(
+  ctx: APIRequestContext,
+  accessToken: string,
+): Promise<NotificationPreferencesRow> {
+  return okJson(
+    await ctx.get(joinUrl("notification/preferences"), { headers: bearer(accessToken) }),
+    "fetchNotificationPreferences",
+  );
+}
+
+export async function updateNotificationPreferences(
+  ctx: APIRequestContext,
+  accessToken: string,
+  patch: Partial<NotificationPreferencesRow>,
+): Promise<NotificationPreferencesRow> {
+  return okJson(
+    await ctx.put(joinUrl("notification/preferences"), { headers: bearer(accessToken), data: patch }),
+    "updateNotificationPreferences",
+  );
+}
