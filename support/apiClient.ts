@@ -1185,6 +1185,8 @@ export async function recordFocusCycle(
     startedAt: string;
     endedAt: string;
     minutes: number;
+    /** The notebook page the pomodoro ran on; credits the study cycle that holds its topic. */
+    notebookPageId?: string;
   },
 ) {
   return ctx.post(joinUrl("focus/cycles"), {
@@ -1701,4 +1703,134 @@ export async function fetchNotebookSources(
 ): Promise<{ id: string; status: string; inherited: boolean; charCount: number | null }[]> {
   return okJson(await ctx.get(joinUrl(`notebook/pages/${pageId}/sources`), { headers: bearer(accessToken) }),
     "fetchNotebookSources");
+}
+
+// ---------------------------------------------------------------- study cycles
+
+export type StudyWeekday = "MONDAY" | "TUESDAY" | "WEDNESDAY" | "THURSDAY" | "FRIDAY" | "SATURDAY" | "SUNDAY";
+export const STUDY_WEEKDAYS: StudyWeekday[] = ["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY", "SUNDAY"];
+
+export interface StudyCycleConfig {
+  name: string;
+  defaultMode: "TIME" | "GOAL";
+  maxBlockMinutes: number;
+  days: { weekday: StudyWeekday; minutes: number; startTime: string | null }[];
+  topics: { topicId: string; importance: number; mastery: number; minutesOverride: number | null }[];
+}
+
+export interface StudyBlockRow {
+  id: string;
+  position: number;
+  topic: { id: string; title: string };
+  mode: "TIME" | "GOAL";
+  plannedMinutes: number;
+  goalSource: "NEXT" | "PAGE" | null;
+  page: { id: string; title: string } | null;
+  requireQuiz: boolean;
+  note: string | null;
+  progress: {
+    lapNumber: number;
+    minutes: number;
+    state: "OPEN" | "DONE" | "UNDERSTOOD" | "TURN_USED";
+    closedAt: string | null;
+    target: { id: string; title: string; status: string } | null;
+    targetPreview: boolean;
+    quizPassed: boolean | null;
+  };
+}
+
+export interface StudyCycleRow {
+  id: string;
+  name: string;
+  lap: { number: number; minutes: number; blocksClosed: number; blocks: number; understood: number; turnsUsed: number };
+  blocks: StudyBlockRow[];
+  previousLaps: { number: number; minutes: number; understood: number; blocks: number }[];
+}
+
+/** Every weekday with the same minutes and start, so "today" has a budget wherever the runner is. */
+export function everyDay(minutes: number, startTime: string | null = null): StudyCycleConfig["days"] {
+  return STUDY_WEEKDAYS.map((weekday) => ({ weekday, minutes, startTime }));
+}
+
+/** `POST /notebook/cycles`. Raw response, so a spec can assert on a refusal. */
+export async function createStudyCycleRaw(ctx: APIRequestContext, accessToken: string, config: StudyCycleConfig) {
+  return ctx.post(joinUrl("notebook/cycles"), { headers: bearer(accessToken), data: config });
+}
+
+export async function createStudyCycle(ctx: APIRequestContext, accessToken: string, config: StudyCycleConfig): Promise<StudyCycleRow> {
+  return okJson(await createStudyCycleRaw(ctx, accessToken, config), "createStudyCycle");
+}
+
+export async function fetchStudyCycleRaw(ctx: APIRequestContext, accessToken: string, cycleId: string) {
+  return ctx.get(joinUrl(`notebook/cycles/${cycleId}`), { headers: bearer(accessToken) });
+}
+
+export async function fetchStudyCycle(ctx: APIRequestContext, accessToken: string, cycleId: string): Promise<StudyCycleRow> {
+  return okJson(await fetchStudyCycleRaw(ctx, accessToken, cycleId), "fetchStudyCycle");
+}
+
+/** The ordered block list as given, `id: null` for new blocks. */
+export async function replaceStudyBlocks(
+  ctx: APIRequestContext,
+  accessToken: string,
+  cycleId: string,
+  blocks: {
+    id: string | null; topicId: string; mode: "TIME" | "GOAL"; plannedMinutes: number;
+    goalSource: "NEXT" | "PAGE" | null; pageId: string | null; requireQuiz: boolean; note: string | null;
+  }[],
+): Promise<StudyCycleRow> {
+  return okJson(await ctx.put(joinUrl(`notebook/cycles/${cycleId}/blocks`), { headers: bearer(accessToken), data: blocks }),
+    "replaceStudyBlocks");
+}
+
+export async function planStudyCycle(
+  ctx: APIRequestContext,
+  accessToken: string,
+  request: Pick<StudyCycleConfig, "days" | "maxBlockMinutes" | "topics">,
+): Promise<{
+  weekMinutes: number; plannedMinutes: number; lapDays: number | null;
+  topics: { topicId: string; weight: number; suggestedMinutes: number; minutes: number; blocks: number }[];
+  blocks: { position: number; topicId: string; plannedMinutes: number }[];
+}> {
+  return okJson(await ctx.post(joinUrl("notebook/cycles/plan"), { headers: bearer(accessToken), data: request }), "planStudyCycle");
+}
+
+export async function archiveStudyCycle(ctx: APIRequestContext, accessToken: string, cycleId: string): Promise<APIResponse> {
+  return ctx.post(joinUrl(`notebook/cycles/${cycleId}/archive`), { headers: bearer(accessToken) });
+}
+
+export async function fetchStudyToday(ctx: APIRequestContext, accessToken: string): Promise<{
+  date: string;
+  plannedMinutes: number;
+  studiedMinutes: number;
+  blocksDone: number;
+  blocksTotal: number;
+  cycles: {
+    cycleId: string; name: string; startTime: string | null; dayMinutes: number; studiedMinutes: number;
+    entries: { blockId: string; position: number; topic: { title: string }; minutesToday: number; credited: number;
+      state: string; doneToday: boolean; nextLap: boolean; start: string | null; end: string | null }[];
+  }[];
+  restingCycles: { cycleId: string; name: string }[];
+}> {
+  return okJson(await ctx.get(joinUrl("notebook/cycles/today"), { headers: bearer(accessToken) }), "fetchStudyToday");
+}
+
+export async function logStudySessionRaw(
+  ctx: APIRequestContext,
+  accessToken: string,
+  session: { topicId: string; pageId: string | null; minutes: number; studiedOn: string; note: string | null },
+) {
+  return ctx.post(joinUrl("notebook/sessions"), { headers: bearer(accessToken), data: session });
+}
+
+export async function deleteStudySession(ctx: APIRequestContext, accessToken: string, sessionId: string): Promise<APIResponse> {
+  return ctx.delete(joinUrl(`notebook/sessions/${sessionId}`), { headers: bearer(accessToken) });
+}
+
+export async function fetchStudyHistory(ctx: APIRequestContext, accessToken: string, cycleId: string, from: string, to: string) {
+  return okJson<{
+    days: { date: string; plannedMinutes: number; minutes: number; byTopic: { topicId: string; minutes: number }[];
+      entries: { kind: string; minutes?: number; sessionId?: string; lapNumber?: number }[] }[];
+  }>(await ctx.get(joinUrl(`notebook/cycles/${cycleId}/history?from=${from}&to=${to}`), { headers: bearer(accessToken) }),
+    "fetchStudyHistory");
 }
