@@ -414,4 +414,33 @@ test.describe("study notebook: review and AI", () => {
     // The question box sits at the bottom of the column, never scrolled away with the answers.
     await expect(page.getByTestId("study-chat-input")).toBeInViewport();
   });
+
+  /**
+   * The tutor answers from its own knowledge where the notes and sources do not cover a question.
+   * Reported in prod: asked for a Spanish level test, it refused because the page had no test in it.
+   * An answer that cites nothing is tagged so the person knows it did not come from their material.
+   */
+  test("an answer from the tutor's own knowledge is tagged as such", async ({ authedPage: page, api }) => {
+    const topic = await createNotebookTopic(api.ctx, api.accessToken, "Spanish C1");
+    const goal = await addNotebookNode(api.ctx, api.accessToken, topic.id, "Goal");
+    await saveNotebookContent(api.ctx, api.accessToken, goal.pageId!, ["Become fluent and move to Spain."]);
+
+    await page.route("**/notebook/ai/pages/*/chat", (route) =>
+      route.fulfill({
+        json: {
+          question: { id: "q1", role: "USER", content: "Give me a level test", citations: [], createdAt: "2026-10-12T10:00:00Z" },
+          answer: { id: "a1", role: "ASSISTANT", content: "This goes beyond your notes. 1. Conjugate *ir* in the preterite.", citations: [], createdAt: "2026-10-12T10:00:01Z" },
+        },
+      }),
+    );
+
+    await page.goto(`/notebook/${goal.pageId}/study`);
+    await page.getByTestId("setup-start").click();
+    await page.getByTestId("study-chat-input").fill("Give me a level test");
+    await page.getByTestId("study-chat-send").click();
+
+    const answer = page.getByTestId("study-answer").last();
+    await expect(answer).toContainText("Conjugate");
+    await expect(answer.getByTestId("study-answer-general")).toBeVisible();
+  });
 });
