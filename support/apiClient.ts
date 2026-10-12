@@ -1721,7 +1721,8 @@ export interface StudyCycleConfig {
 export interface StudyBlockRow {
   id: string;
   position: number;
-  topic: { id: string; title: string };
+  /** The subject: a root topic or any page under one. `rootTitle` is null for a root. */
+  topic: { id: string; title: string; rootTitle?: string | null };
   mode: "TIME" | "GOAL";
   plannedMinutes: number;
   goalSource: "NEXT" | "PAGE" | null;

@@ -1,5 +1,6 @@
 import { test, expect } from "../fixtures/auth";
 import {
+  addNotebookNode,
   createNotebookTopic,
   createStudyCycle,
   editUser,
@@ -51,6 +52,30 @@ test.describe("study cycle in the app", () => {
     await expect(card).toBeVisible();
     await expect(card.getByTestId("study-today-cycle")).toContainText("Public exam");
     await expect(card.getByTestId("study-today-entry").first()).toContainText("Portuguese");
+  });
+
+  /** Reported on first use: only root topics could be picked, so a cycle could not rotate between areas. */
+  test("the editor offers the areas inside a topic as subjects", async ({ authedPage: page, api }) => {
+    test.setTimeout(60_000);
+    const root = await createNotebookTopic(api.ctx, api.accessToken, "Software Engineering");
+    const implementation = await addNotebookNode(api.ctx, api.accessToken, root.id, "Implementation", 40);
+    const product = await addNotebookNode(api.ctx, api.accessToken, root.id, "Product", 320);
+
+    await page.goto("/notebook/cycles/new");
+    await page.getByTestId("cycle-name").fill("Senior engineer");
+    const picker = page.getByTestId("cycle-add-topic");
+    await picker.selectOption(implementation.pageId!);
+    await picker.selectOption(product.pageId!);
+    await expect(page.getByTestId("cycle-topic-row")).toHaveCount(2);
+    await expect(page.getByTestId("cycle-topic-row").first()).toContainText("Implementation");
+    // The whole topic now overlaps both picks, so it can no longer be added.
+    await expect(picker.locator(`option[value="${root.id}"]`)).toBeDisabled();
+
+    await expect(page.getByTestId("cycle-plan-block").first()).toBeVisible();
+    await page.getByTestId("cycle-save").click();
+    await expect(page).toHaveURL(/\/notebook\/cycles\?cycle=/);
+    await expect(page.getByTestId("cycle-block").filter({ hasText: "Implementation" }).first()).toBeVisible();
+    await expect(page.getByTestId("cycle-block").filter({ hasText: "Product" }).first()).toBeVisible();
   });
 
   test("a session logged from the Today card lands on the topic's first open block", async ({ authedPage: page, api }) => {
