@@ -223,6 +223,50 @@ test.describe("study cycle rules", () => {
     expect(history.days[0].entries.map((x) => x.kind)).toEqual(["MANUAL"]);
   });
 
+  /**
+   * A cycle rotates between areas, and the areas live inside a topic. A page under a root is a
+   * subject of its own, and a pomodoro anywhere below it credits that subject's block, and only it.
+   */
+  test("a page inside a topic is a subject, and a pomodoro below it credits its block", async ({ api }) => {
+    const root = await createNotebookTopic(api.ctx, api.accessToken, "Software Engineering");
+    const implementation = await addNotebookNode(api.ctx, api.accessToken, root.id, "Implementation", 40);
+    const product = await addNotebookNode(api.ctx, api.accessToken, root.id, "Product", 320);
+    const architecture = await addNotebookNode(api.ctx, api.accessToken, root.id, "Architecture", 600);
+    const testing = await addNotebookNode(api.ctx, api.accessToken, implementation.pageId!, "Testing");
+    const cycle = await createStudyCycle(api.ctx, api.accessToken, config([implementation.pageId!, product.pageId!]));
+    await replaceStudyBlocks(api.ctx, api.accessToken, cycle.id, [timeBlock(implementation.pageId!, 25), timeBlock(product.pageId!, 25)]);
+
+    let read = await fetchStudyCycle(api.ctx, api.accessToken, cycle.id);
+    expect(read.blocks[0].topic).toMatchObject({ title: "Implementation", rootTitle: "Software Engineering" });
+
+    // A grandchild page credits the area it lives in.
+    await pomodoro(api, testing.pageId!, 25);
+    // A page of the same root outside every subject credits nothing.
+    await pomodoro(api, architecture.pageId!, 25);
+    read = await fetchStudyCycle(api.ctx, api.accessToken, cycle.id);
+    expect(read.blocks.map((x) => [x.topic.title, x.progress.minutes, x.progress.state])).toEqual([
+      ["Implementation", 25, "DONE"],
+      ["Product", 0, "OPEN"],
+    ]);
+  });
+
+  /** Overlapping subjects would make one pomodoro credit two blocks, so they are refused. */
+  test("subjects never overlap, within a cycle or across cycles", async ({ api }) => {
+    const root = await createNotebookTopic(api.ctx, api.accessToken, "Software Engineering");
+    const child = await addNotebookNode(api.ctx, api.accessToken, root.id, "Implementation");
+    await createStudyCycle(api.ctx, api.accessToken, config([child.pageId!], { name: "Areas" }));
+
+    const ancestor = await createStudyCycleRaw(api.ctx, api.accessToken, config([root.id], { name: "Whole topic" }));
+    expect(ancestor.status()).toBe(400);
+    expect((await ancestor.json()).errorKey).toBe("STUDY_CYCLE_TOPIC_TAKEN");
+
+    const other = await createNotebookTopic(api.ctx, api.accessToken, "Spanish");
+    const otherChild = await addNotebookNode(api.ctx, api.accessToken, other.id, "Grammar");
+    const both = await createStudyCycleRaw(api.ctx, api.accessToken, config([other.id, otherChild.pageId!], { name: "Spanish" }));
+    expect(both.status()).toBe(400);
+    expect((await both.json()).errorKey).toBe("STUDY_CYCLE_TOPIC_OVERLAP");
+  });
+
   test("somebody else's cycle answers STUDY_CYCLE_NOT_OWNED, and their topics cannot join yours", async ({ api }) => {
     const topic = await createNotebookTopic(api.ctx, api.accessToken, "Private study");
     const cycle = await createStudyCycle(api.ctx, api.accessToken, config([topic.id]));
