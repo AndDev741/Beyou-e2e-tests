@@ -375,4 +375,43 @@ test.describe("study notebook: review and AI", () => {
     await expect(page.getByTestId("study-view-split")).toHaveAttribute("aria-pressed", "true");
     await expect(page.getByTestId("study-notes")).toBeVisible();
   });
+
+  /**
+   * Reported in prod: with a long conversation the whole room scrolled, so changing a source or
+   * leaving meant scrolling back to the top. On desktop only the columns scroll now.
+   */
+  test("a long conversation scrolls in its column while the header, sources and studio stay put", async ({ authedPage: page, api }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    const topic = await createNotebookTopic(api.ctx, api.accessToken, "Compilers");
+    const parsing = await addNotebookNode(api.ctx, api.accessToken, topic.id, "Parsing");
+    await saveNotebookContent(api.ctx, api.accessToken, parsing.pageId!, ["LL parsers read left to right."]);
+
+    // Forty earlier turns, so the conversation is far taller than the screen. Everything else in
+    // the room comes from the real backend.
+    const messages = Array.from({ length: 40 }, (_, i) => ({
+      id: `m${i}`,
+      role: i % 2 === 0 ? "USER" : "ASSISTANT",
+      content: i % 2 === 0 ? `Question ${i / 2 + 1}?` : `Answer ${(i + 1) / 2}. `.repeat(12),
+      citations: [],
+      createdAt: "2026-10-12T10:00:00Z",
+    }));
+    await page.route("**/notebook/pages/*/study", async (route) => {
+      if (route.request().method() !== "GET") return route.continue();
+      const room = await (await route.fetch()).json();
+      await route.fulfill({ json: { ...room, messages, setup: { ...room.setup, configuredAt: "2026-10-12T09:00:00Z" } } });
+    });
+
+    await page.goto(`/notebook/${parsing.pageId}/study`);
+    await page.getByTestId("study-view-room").click();
+    await expect(page.getByTestId("study-answer")).toHaveCount(20);
+
+    const chat = page.getByTestId("study-col-chat");
+    await chat.evaluate((column) => column.scrollTo(0, column.scrollHeight));
+    await expect(page.getByText("Answer 20.").first()).toBeInViewport();
+    await expect(page.getByTestId("study-view-switch")).toBeInViewport();
+    await expect(page.locator("#study-sources-title")).toBeInViewport();
+    await expect(page.locator("#study-studio-title")).toBeInViewport();
+    // The question box sits at the bottom of the column, never scrolled away with the answers.
+    await expect(page.getByTestId("study-chat-input")).toBeInViewport();
+  });
 });
