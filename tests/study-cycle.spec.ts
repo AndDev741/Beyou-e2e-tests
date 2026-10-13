@@ -3,9 +3,11 @@ import {
   addNotebookNode,
   createNotebookTopic,
   createStudyCycle,
+  createStudyCycleRaw,
   editUser,
   everyDay,
   fetchStudyCycle,
+  fetchStudyCycleRaw,
   replaceStudyBlocks,
 } from "../support/apiClient";
 
@@ -109,6 +111,42 @@ test.describe("study cycle in the app", () => {
       .toEqual([0, 45]);
     // The card reads the cycle again and shows the block moving.
     await expect(page.getByTestId("study-today-entry").filter({ hasText: "Portuguese" })).toContainText("15");
+  });
+
+  /**
+   * Reported on first use: the screen only offered to archive. Archive keeps the cycle readable, so
+   * the 404-style refusal on the read is what tells a delete apart from an archive here.
+   */
+  test("a cycle deleted from its screen is gone for good and frees its subject", async ({ authedPage: page, api }) => {
+    const spanish = await createNotebookTopic(api.ctx, api.accessToken, "Spanish");
+    const history = await createNotebookTopic(api.ctx, api.accessToken, "History");
+    const subject = (topicId: string) => ({ topicId, importance: 3, mastery: 3, minutesOverride: null });
+    const old = await createStudyCycle(api.ctx, api.accessToken, {
+      name: "Old plan", defaultMode: "TIME", maxBlockMinutes: 90, days: everyDay(60), topics: [subject(spanish.id)],
+    });
+    await createStudyCycle(api.ctx, api.accessToken, {
+      name: "Keep", defaultMode: "TIME", maxBlockMinutes: 90, days: everyDay(60), topics: [subject(history.id)],
+    });
+
+    await page.goto(`/notebook/cycles?cycle=${old.id}`);
+    await expect(page.getByTestId("cycle-block").first()).toContainText("Spanish");
+    await page.getByTestId("cycle-delete").click();
+    const dialog = page.getByRole("dialog");
+    await expect(dialog).toContainText("Delete Old plan?");
+    await expect(dialog).toContainText("archive it instead");
+    await dialog.getByTestId("cycle-delete-confirm").click();
+
+    // The screen moves on to the cycle that is left.
+    await expect(page.getByTestId("cycle-block").first()).toContainText("History");
+    await expect(page.getByTestId("cycle-chip")).toHaveCount(0);
+
+    const read = await fetchStudyCycleRaw(api.ctx, api.accessToken, old.id);
+    expect(read.status()).toBe(400);
+    expect((await read.json()).errorKey).toBe("STUDY_CYCLE_NOT_FOUND");
+    const again = await createStudyCycleRaw(api.ctx, api.accessToken, {
+      name: "New plan", defaultMode: "TIME", maxBlockMinutes: 90, days: everyDay(60), topics: [subject(spanish.id)],
+    });
+    expect(again.status()).toBe(201);
   });
 
   test("the dashboard widget shows what is up next today", async ({ authedPage: page, api }) => {
