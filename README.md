@@ -47,9 +47,10 @@ Beyou-e2e-tests/
 | `tests/notebook-focus.spec.ts` | "Focus 25" never replaces a running pomodoro: with a cycle started on one page, the button on another page is disabled and says why, and the first page still owns the cycle. Web used to let the second click throw the first cycle away |
 | `tests/study-cycle-rules.spec.ts` | API-only: a topic sits in one active cycle until that cycle is archived (`STUDY_CYCLE_TOPIC_TAKEN`); the planner splits the week by weight and interleaves the blocks (the canvas example, 15 blocks); a pomodoro on a page fills its topic's first open block, spills into the next, leaves the rest on the last, and the last open block closes the lap; a concept whose estimate runs out carries to the topic's next block, which closes as understood when the page is set done; a logged session is credited now, its delete reopens the block, and a future date is refused; today's slice fits the day's minutes and its clock moves with what was studied; another account's cycle answers `STUDY_CYCLE_NOT_OWNED` |
 | `tests/study-cycle.spec.ts` | Through the web app: a cycle built in the editor from two topics (a rest day turned into a study day, a weight raised) saves with the blocks its plan showed, and the notebook's Today card lays the day out; the areas inside a topic are offered as subjects; a session logged from the card lands on the topic's first open block and the card shows it moving; a cycle deleted from its screen can no longer be read and its subject is free for a new cycle; the dashboard widget shows what is up next with its start time |
+| `tests/study-cycle-focus.spec.ts` | Through the web app with a fake clock: Focus 25 on a page two levels under a cycle's subject runs out, the cycle is recorded with that page, the block holds the 25 minutes, and the Today card's bar fills with them. The bar used to follow the page's status, so it stayed empty and the time read as not counted |
 
 The table above lists the specs whose rule would be expensive to get wrong later, not the whole
-suite: `tests/` currently holds 51 spec files. Run `ls tests/` for the rest.
+suite: `tests/` currently holds 52 spec files. Run `ls tests/` for the rest.
 
 Everything except `auth.spec.ts`, `auth-persistence.spec.ts`, and
 `auth-failures.spec.ts` uses `fixtures/auth.ts` to set up an authenticated
