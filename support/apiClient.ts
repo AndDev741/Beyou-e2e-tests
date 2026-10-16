@@ -1808,7 +1808,7 @@ export async function fetchStudyToday(ctx: APIRequestContext, accessToken: strin
   blocksTotal: number;
   cycles: {
     cycleId: string; name: string; startTime: string | null; dayMinutes: number; studiedMinutes: number;
-    entries: { blockId: string; position: number; topic: { title: string }; minutesToday: number; credited: number;
+    entries: { blockId: string; position: number; topic: { title: string }; plannedMinutes: number; minutesToday: number; credited: number;
       state: string; doneToday: boolean; nextLap: boolean; start: string | null; end: string | null }[];
   }[];
   restingCycles: { cycleId: string; name: string }[];
