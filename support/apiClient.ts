@@ -1981,3 +1981,106 @@ export async function updateNotificationPreferences(
     "updateNotificationPreferences",
   );
 }
+
+// ---------------------------------------------------------------------------
+// Ideas board: quick notes on a free board, and converting one into a task.
+// ---------------------------------------------------------------------------
+
+export type QuickNoteColor = "YELLOW" | "PINK" | "BLUE" | "GREEN" | "PURPLE" | "ORANGE";
+
+export interface QuickNoteRow {
+  id: string;
+  text: string;
+  color: QuickNoteColor;
+  x: number;
+  y: number;
+  z: number;
+  archivedAt: string | null;
+  convertedTaskId: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface QuickNotePayload {
+  text: string;
+  color?: QuickNoteColor;
+  x?: number;
+  y?: number;
+}
+
+/** Raw response, so a test can assert on a refusal (the 200-note limit, an invalid body). */
+export async function postQuickNote(
+  ctx: APIRequestContext,
+  accessToken: string,
+  payload: QuickNotePayload,
+): Promise<APIResponse> {
+  return ctx.post(joinUrl("quick-notes"), { headers: bearer(accessToken), data: payload });
+}
+
+export async function createQuickNote(
+  ctx: APIRequestContext,
+  accessToken: string,
+  payload: QuickNotePayload,
+): Promise<QuickNoteRow> {
+  return okJson(await postQuickNote(ctx, accessToken, payload), "createQuickNote");
+}
+
+export async function fetchQuickNotes(ctx: APIRequestContext, accessToken: string): Promise<QuickNoteRow[]> {
+  return okJson(await ctx.get(joinUrl("quick-notes"), { headers: bearer(accessToken) }), "fetchQuickNotes");
+}
+
+export async function fetchArchivedQuickNotes(
+  ctx: APIRequestContext,
+  accessToken: string,
+): Promise<QuickNoteRow[]> {
+  return okJson(
+    await ctx.get(joinUrl("quick-notes/archived"), { headers: bearer(accessToken) }),
+    "fetchArchivedQuickNotes",
+  );
+}
+
+export async function editQuickNote(
+  ctx: APIRequestContext,
+  accessToken: string,
+  id: string,
+  payload: { text: string; color: QuickNoteColor },
+): Promise<APIResponse> {
+  return ctx.put(joinUrl(`quick-notes/${id}`), { headers: bearer(accessToken), data: payload });
+}
+
+export async function saveQuickNoteLayout(
+  ctx: APIRequestContext,
+  accessToken: string,
+  positions: { id: string; x: number; y: number; z: number }[],
+): Promise<APIResponse> {
+  return ctx.put(joinUrl("quick-notes/layout"), { headers: bearer(accessToken), data: { positions } });
+}
+
+export async function tidyQuickNotes(ctx: APIRequestContext, accessToken: string): Promise<QuickNoteRow[]> {
+  return okJson(await ctx.post(joinUrl("quick-notes/tidy"), { headers: bearer(accessToken) }), "tidyQuickNotes");
+}
+
+export async function archiveQuickNote(ctx: APIRequestContext, accessToken: string, id: string): Promise<APIResponse> {
+  return ctx.post(joinUrl(`quick-notes/${id}/archive`), { headers: bearer(accessToken) });
+}
+
+export async function restoreQuickNote(ctx: APIRequestContext, accessToken: string, id: string): Promise<APIResponse> {
+  return ctx.post(joinUrl(`quick-notes/${id}/restore`), { headers: bearer(accessToken) });
+}
+
+export async function deleteQuickNote(ctx: APIRequestContext, accessToken: string, id: string): Promise<APIResponse> {
+  return ctx.delete(joinUrl(`quick-notes/${id}`), { headers: bearer(accessToken) });
+}
+
+/** The body is a task create body (`CreateTaskRequestDTO`). Raw, so a test can see a 409. */
+export async function convertQuickNoteToTask(
+  ctx: APIRequestContext,
+  accessToken: string,
+  id: string,
+  task: { name: string; description?: string; iconId: string; categoriesId?: string[]; oneTimeTask?: boolean },
+): Promise<APIResponse> {
+  return ctx.post(joinUrl(`quick-notes/${id}/task`), {
+    headers: bearer(accessToken),
+    data: { description: "", categoriesId: [], oneTimeTask: false, ...task },
+  });
+}
