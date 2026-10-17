@@ -1,4 +1,4 @@
-import type { APIRequestContext } from "@playwright/test";
+import type { APIRequestContext, Locator } from "@playwright/test";
 import { test, expect } from "../fixtures/auth";
 import { makeUser } from "../support/testData";
 import {
@@ -37,6 +37,29 @@ async function stranger(ctx: APIRequestContext): Promise<string> {
   await registerUser(ctx, user);
   const { accessToken } = await loginUser(ctx, { email: user.email, password: user.password });
   return accessToken;
+}
+
+/**
+ * The note's box once the board has stopped moving. The board frames itself on load with a short
+ * animation, and a drag started inside it is converted with a transform that changes under the
+ * mouse: on CI the note landed at a negative x. Two equal reads 150 ms apart mean the view settled.
+ */
+async function settledBox(locator: Locator) {
+  let last = "";
+  let box: Awaited<ReturnType<Locator["boundingBox"]>> = null;
+  await expect
+    .poll(
+      async () => {
+        box = await locator.boundingBox();
+        const key = JSON.stringify(box);
+        const settled = box !== null && key === last;
+        last = key;
+        return settled;
+      },
+      { intervals: [150] },
+    )
+    .toBe(true);
+  return box!;
 }
 
 test.describe("ideas board API", () => {
@@ -228,7 +251,7 @@ test.describe("ideas board in the browser", () => {
     await authedPage.goto("/ideas");
     const note = authedPage.locator(`[data-testid="quick-note"][data-note-id="${behind.id}"]`);
     await expect(note).toBeVisible();
-    const box = (await note.boundingBox())!;
+    const box = await settledBox(note);
 
     await authedPage.mouse.move(box.x + box.width / 2, box.y + 20);
     await authedPage.mouse.down();
