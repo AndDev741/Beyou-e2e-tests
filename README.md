@@ -28,6 +28,7 @@ Beyou-e2e-tests/
 | `tests/habits.spec.ts` | Create → edit → delete a habit through the UI |
 | `tests/goals.spec.ts` | API-only: `/goal/increase` awards no XP, `/goal/complete` does — locks in the asymmetry. Also that increase/decrease move by the amount they are given and that progress is what starts a goal |
 | `tests/routine-checkin.spec.ts` | Check a habit on today's routine → XP and constance go up; checkbox state survives a reload |
+| `tests/routine-item-days.spec.ts` | An item limited to some weekdays. A Saturday-and-Sunday style routine (here today and tomorrow) holds an item limited to tomorrow: `GET /routine/today` leaves it out, checking it today answers 400 `ROUTINE_ITEM_NOT_ACTIVE_ON_DAY`, the routine itself keeps the item and its days, and the dashboard draws the routine without it. In the browser: picking the day in the routine editor reaches the server on that item only, and the Routines page shows it dimmed, with nothing to tick and out of today's count |
 | `tests/tutorial.spec.ts` | Skip, walk the seven intro cards (titles in `support/tutorial.ts`, shared with `ai-onboarding.spec.ts`), **and** walk the whole onboarding journey end to end (intro → dashboard → categories → habits → routines → config) |
 | `tests/language.spec.ts` | An account starts in the language its owner reads: register and the UI signup store `pt` from a Portuguese browser, `pt-BR` is normalised, an unshipped language is dropped, an older account with none takes the screen's on its next boot, and a saved language is never replaced by the browser's |
 | `tests/user-photo-access.spec.ts` | API-only: `GET /user/photo/{id}` serves the bytes to a signed URL and answers 403 to an unsigned, forged, truncated, re-pointed or re-dated one. Locks in the fix for the endpoint that used to answer anybody who could guess a user id |
@@ -52,7 +53,7 @@ Beyou-e2e-tests/
 | `tests/study-cycle-focus.spec.ts` | Through the web app with a fake clock: Focus 25 on a page two levels under a cycle's subject runs out, the cycle is recorded with that page, the block holds the 25 minutes, and the Today card's bar fills with them. The bar used to follow the page's status, so it stayed empty and the time read as not counted |
 
 The table above lists the specs whose rule would be expensive to get wrong later, not the whole
-suite: `tests/` currently holds 54 spec files. Run `ls tests/` for the rest.
+suite: `tests/` currently holds 55 spec files. Run `ls tests/` for the rest.
 
 Everything except `auth.spec.ts`, `auth-persistence.spec.ts`, and
 `auth-failures.spec.ts` uses `fixtures/auth.ts` to set up an authenticated

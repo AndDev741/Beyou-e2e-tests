@@ -312,6 +312,8 @@ export interface RoutineHabitGroup {
   habitId: string;
   startTime: string;
   endTime: string;
+  /** The weekdays this item runs on, inside its routine's. Absent: every day the routine runs. */
+  days?: WeekDay[];
 }
 
 export interface RoutineSection {
@@ -866,8 +868,8 @@ export interface RoutineSnapshot {
     startTime: string;
     endTime: string;
     favorite?: boolean;
-    habitGroup?: Array<{ id: string; habitId: string; startTime: string; endTime?: string }>;
-    taskGroup?: Array<{ id: string; taskId: string; startTime: string; endTime?: string }>;
+    habitGroup?: Array<{ id: string; habitId: string; startTime: string; endTime?: string; days?: WeekDay[] }>;
+    taskGroup?: Array<{ id: string; taskId: string; startTime: string; endTime?: string; days?: WeekDay[] }>;
   }>;
 }
 
