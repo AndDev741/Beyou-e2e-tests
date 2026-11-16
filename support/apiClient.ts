@@ -2086,3 +2086,103 @@ export async function convertQuickNoteToTask(
     data: { description: "", categoriesId: [], oneTimeTask: false, ...task },
   });
 }
+
+// ---------------------------------------------------------------------------
+// Second Brain: the page's one read, the profile, the questions and the source switches.
+// ---------------------------------------------------------------------------
+
+export type SecondBrainFactRow = {
+  id: string;
+  kind: "OBJECTIVE" | "LIKE" | "ABOUT";
+  text: string;
+  origin: "USER" | "ANSWER";
+};
+
+export type SecondBrainQuestionRow = {
+  id: string;
+  kind: "PROFILE_OBJECTIVES" | "PROFILE_LIKES" | "PROFILE_ABOUT" | "CHECK_IN" | "FOLLOW_UP";
+  text: string;
+  status: "OPEN" | "ANSWERED" | "SKIPPED";
+  answer: string | null;
+};
+
+export type SecondBrainPage = {
+  insight: { text: string | null; verdict: string | null; generatedAt: string | null; stale: boolean };
+  goalsAhead: unknown[];
+  routine: { thisWeekPercent: number | null; previousWeekPercent: number | null; slipping: unknown[]; steady: unknown[] } | null;
+  areas: unknown[];
+  questions: SecondBrainQuestionRow[];
+  facts: SecondBrainFactRow[];
+  sources: { source: string; enabled: boolean }[];
+  aiAvailable: boolean;
+};
+
+export async function fetchSecondBrain(ctx: APIRequestContext, accessToken: string): Promise<SecondBrainPage> {
+  return okJson(await ctx.get(joinUrl("second-brain"), { headers: bearer(accessToken) }), "fetchSecondBrain");
+}
+
+export async function refillSecondBrainQuestions(
+  ctx: APIRequestContext,
+  accessToken: string,
+): Promise<SecondBrainQuestionRow[]> {
+  return okJson(
+    await ctx.post(joinUrl("second-brain/questions/refill"), { headers: bearer(accessToken) }),
+    "refillSecondBrainQuestions",
+  );
+}
+
+/** The raw response, for specs that assert a refusal. */
+export async function postSecondBrainAnswer(
+  ctx: APIRequestContext,
+  accessToken: string,
+  questionId: string,
+  answer: string,
+): Promise<APIResponse> {
+  return ctx.post(joinUrl(`second-brain/questions/${questionId}/answer`), {
+    headers: bearer(accessToken),
+    data: { answer },
+  });
+}
+
+/** The raw response, for specs that assert a refusal. */
+export async function postSecondBrainFact(
+  ctx: APIRequestContext,
+  accessToken: string,
+  payload: { kind: SecondBrainFactRow["kind"]; text: string },
+): Promise<APIResponse> {
+  return ctx.post(joinUrl("second-brain/facts"), { headers: bearer(accessToken), data: payload });
+}
+
+export async function createSecondBrainFact(
+  ctx: APIRequestContext,
+  accessToken: string,
+  payload: { kind: SecondBrainFactRow["kind"]; text: string },
+): Promise<SecondBrainFactRow> {
+  return okJson(await postSecondBrainFact(ctx, accessToken, payload), "createSecondBrainFact");
+}
+
+export async function putSecondBrainFact(
+  ctx: APIRequestContext,
+  accessToken: string,
+  id: string,
+  payload: { kind: SecondBrainFactRow["kind"]; text: string },
+): Promise<APIResponse> {
+  return ctx.put(joinUrl(`second-brain/facts/${id}`), { headers: bearer(accessToken), data: payload });
+}
+
+export async function deleteSecondBrainFact(
+  ctx: APIRequestContext,
+  accessToken: string,
+  id: string,
+): Promise<APIResponse> {
+  return ctx.delete(joinUrl(`second-brain/facts/${id}`), { headers: bearer(accessToken) });
+}
+
+export async function setSecondBrainSource(
+  ctx: APIRequestContext,
+  accessToken: string,
+  source: string,
+  enabled: boolean,
+): Promise<APIResponse> {
+  return ctx.put(joinUrl(`second-brain/sources/${source}`), { headers: bearer(accessToken), data: { enabled } });
+}
