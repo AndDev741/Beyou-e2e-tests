@@ -2095,12 +2095,12 @@ export type SecondBrainFactRow = {
   id: string;
   kind: "OBJECTIVE" | "LIKE" | "ABOUT";
   text: string;
-  origin: "USER" | "ANSWER";
+  origin: "USER" | "ANSWER" | "ASSISTANT" | "OLD_NOTE";
 };
 
 export type SecondBrainQuestionRow = {
   id: string;
-  kind: "PROFILE_OBJECTIVES" | "PROFILE_LIKES" | "PROFILE_ABOUT" | "CHECK_IN" | "FOLLOW_UP";
+  kind: "PROFILE_OBJECTIVES" | "PROFILE_LIKES" | "PROFILE_ABOUT" | "CHECK_IN" | "FOLLOW_UP" | "NEW_THING";
   text: string;
   status: "OPEN" | "ANSWERED" | "SKIPPED";
   answer: string | null;
@@ -2115,6 +2115,40 @@ export type SecondBrainPage = {
   facts: SecondBrainFactRow[];
   sources: { source: string; enabled: boolean }[];
   aiAvailable: boolean;
+  memory: SecondBrainMemoryGroupRow[];
+  oldNote: string[];
+};
+
+/** One note Beyou keeps about a thing (step 2, readable memory). */
+export type SecondBrainNoteRow = {
+  id: string;
+  text: string;
+  origin: "USER" | "ANSWER" | "ASSISTANT";
+  subjectName: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type SecondBrainMemorySubjectRow = {
+  type: "HABIT" | "GOAL" | "ROUTINE" | "CATEGORY" | "LOOSE";
+  id: string | null;
+  name: string;
+  iconId: string | null;
+  formerType: "HABIT" | "GOAL" | "ROUTINE" | null;
+  notes: SecondBrainNoteRow[];
+};
+
+export type SecondBrainMemoryGroupRow = {
+  categoryId: string | null;
+  categoryName: string | null;
+  categoryIconId: string | null;
+  subjects: SecondBrainMemorySubjectRow[];
+};
+
+export type SecondBrainAnswerResult = {
+  question: SecondBrainQuestionRow;
+  learned: SecondBrainFactRow[];
+  notes: SecondBrainNoteRow[];
 };
 
 export async function fetchSecondBrain(ctx: APIRequestContext, accessToken: string): Promise<SecondBrainPage> {
@@ -2176,6 +2210,30 @@ export async function deleteSecondBrainFact(
   id: string,
 ): Promise<APIResponse> {
   return ctx.delete(joinUrl(`second-brain/facts/${id}`), { headers: bearer(accessToken) });
+}
+
+/** The raw response, for specs that assert a refusal. */
+export async function putSecondBrainNote(
+  ctx: APIRequestContext,
+  accessToken: string,
+  id: string,
+  text: string,
+): Promise<APIResponse> {
+  return ctx.put(joinUrl(`second-brain/notes/${id}`), { headers: bearer(accessToken), data: { text } });
+}
+
+/** The raw response, for specs that assert a refusal. */
+export async function deleteSecondBrainNote(
+  ctx: APIRequestContext,
+  accessToken: string,
+  id: string,
+): Promise<APIResponse> {
+  return ctx.delete(joinUrl(`second-brain/notes/${id}`), { headers: bearer(accessToken) });
+}
+
+/** "Clear all conversations" in the assistant panel. */
+export async function clearAllAgentChats(ctx: APIRequestContext, accessToken: string): Promise<APIResponse> {
+  return ctx.delete(joinUrl("ai/agent/chats"), { headers: bearer(accessToken) });
 }
 
 export async function setSecondBrainSource(

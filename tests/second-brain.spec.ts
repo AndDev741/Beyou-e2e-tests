@@ -44,11 +44,14 @@ test.describe("second brain API", () => {
     // The contract snapshot in the frontend was edited by hand for these routes. This is the
     // assertion that reads the fields off the real endpoint.
     expect(Object.keys(page).sort()).toEqual(
-      ["aiAvailable", "areas", "facts", "goalsAhead", "insight", "questions", "routine", "sources"].sort(),
+      ["aiAvailable", "areas", "facts", "goalsAhead", "insight", "memory", "oldNote", "questions", "routine", "sources"].sort(),
     );
     expect(page.insight).toEqual({ text: null, verdict: null, generatedAt: null, stale: true });
     expect(page.facts).toEqual([]);
     expect(page.questions).toEqual([]);
+    // Readable memory (second-brain-memory.spec.ts): nothing kept yet, and no old hidden note.
+    expect(page.memory).toEqual([]);
+    expect(page.oldNote).toEqual([]);
     expect(typeof page.aiAvailable).toBe("boolean");
     // What a person has not chosen yet: their own activity is read, their writing is not.
     expect(page.sources).toEqual([
