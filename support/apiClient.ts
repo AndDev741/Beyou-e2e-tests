@@ -1380,7 +1380,7 @@ export interface BriefingGoalRow {
   remainingValue: number;
   requiredPerDay: number | null;
   expectedPercent: number;
-  pace: "ON_TRACK" | "BEHIND" | "OVERDUE" | "REACHED";
+  pace: "ON_TRACK" | "BEHIND" | "OVERDUE" | "REACHED" | "ONE_TIME";
 }
 
 export interface BriefingNarrativeRow {

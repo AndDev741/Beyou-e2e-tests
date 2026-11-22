@@ -354,6 +354,44 @@ test.describe("Daily Briefing", () => {
   });
 
   /**
+   * A goal of one unit is done or not, so a straight line through it read "behind pace" a few
+   * days in, and "0.1 a day" became "3 interviews a month" on screen. The server now calls it
+   * ONE_TIME, with no daily rate, and the dialog shows neither a pace line nor a tick for it.
+   */
+  test("a one-time goal gets no pace line and no tick", async ({ api, briefingPage }) => {
+    const { id: categoryId } = await createCategory(api.ctx, api.accessToken, {
+      name: "Career",
+      icon: "icon:fa-briefcase",
+      description: "Seeded for E2E",
+      experience: "BEGINNER",
+    });
+    const today = todayIso();
+    await createGoal(api.ctx, api.accessToken, {
+      name: "Ace the interview",
+      iconId: "icon:fa-briefcase",
+      targetValue: 1,
+      unit: "interview",
+      currentValue: 0,
+      categoriesId: [categoryId],
+      startDate: addDaysIso(today, -20),
+      endDate: addDaysIso(today, 15),
+      status: "NOT_STARTED",
+      term: "SHORT_TERM",
+    });
+
+    const goal = (await fetchDailyBriefing(api.ctx, api.accessToken)).today.goalsAhead[0];
+    // Twenty days into a 36-day line at zero: a straight line would have said BEHIND.
+    expect(goal.pace).toBe("ONE_TIME");
+    expect(goal.requiredPerDay).toBeNull();
+    expect(goal.daysRemaining).toBe(15);
+
+    await briefingPage.goto("/dashboard");
+    await expect(briefingPage.getByTestId("briefing-goal")).toContainText("Ace the interview");
+    await expect(briefingPage.getByTestId("briefing-goal-pace")).toHaveCount(0);
+    await expect(briefingPage.getByTestId("briefing-goal-expected")).toHaveCount(0);
+  });
+
+  /**
    * The journal in the dialog, and the privacy rule around it. The client reads yesterday's
    * entry from the mood API; the briefing payload never carries the text, which is what keeps
    * it away from the model that writes the summary. And today's mood can be marked from the
