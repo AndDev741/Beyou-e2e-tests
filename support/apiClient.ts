@@ -156,7 +156,34 @@ export async function loginUser(
       "login response missing X-Access-Token header — backend changed?",
     );
   }
+  await grantAiConsent(ctx, accessToken);
   return { accessToken };
+}
+
+/**
+ * Says yes to Beyou sending this account's data to its AI provider.
+ *
+ * The backend refuses every AI route until the person has answered, and an account that was
+ * never asked counts as a no. A real person answers once in the app; the suite answers for
+ * every account it signs in, so specs that are not about the question reach the AI features
+ * as before. `onlyIfUnasked` leaves an answer a spec gave on purpose alone, so a later
+ * login never turns a "no" back into a "yes".
+ *
+ * A backend from before the question has no such route (404/405): nothing to answer there.
+ */
+export async function grantAiConsent(
+  ctx: APIRequestContext,
+  accessToken: string,
+): Promise<void> {
+  const response = await ctx.put(joinUrl("user/ai-consent"), {
+    headers: { Authorization: `Bearer ${accessToken}` },
+    data: { granted: true, onlyIfUnasked: true },
+  });
+  if (response.ok() || response.status() === 404 || response.status() === 405) return;
+  const body = await response.text();
+  throw new Error(
+    `grantAiConsent failed: ${response.status()} ${response.statusText()} — ${body}`,
+  );
 }
 
 export interface UserSnapshot {
